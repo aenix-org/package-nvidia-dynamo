@@ -6,16 +6,27 @@
 ## the tenant-facing `cozy-nvidia-dynamo` chart, which only emits
 ## DynamoGraphDeployment CRs against the operator deployed here.
 ##
+## NATS: the upstream chart's bundled NATS subchart is disabled. The
+## chart's templates/nats.yaml instead emits a cozystack-native
+## `NATS` CR (apps.cozystack.io/v1alpha1), reusing the cluster's
+## standard packages/apps/nats chart — same monitoring, backups, and
+## alert rules as any other tenant NATS instance. The operator is
+## wired at the resulting Service via natsAddr.
+##
 ## etcd: the upstream chart's Bitnami etcd dependency is dropped during
 ## vendoring (Bitnami images are forbidden in this org). The operator is
 ## pinned to `discoveryBackend: kubernetes`, so neither it nor the worker
 ## runtime needs etcd — discovery flows through the Kubernetes API and
 ## NATS handles the event plane.
 
+## @param {string} [natsStorageClass] - StorageClass for the cozystack-managed NATS JetStream PVC. Empty = cluster default.
+natsStorageClass: ""
+
 dynamo-platform:
   global:
     nats:
-      install: true
+      # Disabled — see the cozystack NATS CR shipped from templates/nats.yaml.
+      install: false
     etcd:
       install: false
     grove:
@@ -27,6 +38,18 @@ dynamo-platform:
     # See cozy-nvidia-dynamo/values.yaml for the long-form reason.
     upgradeCRD: false
     discoveryBackend: kubernetes
+    # Point at the cozystack-managed NATS rendered from the direct
+    # HelmRelease in templates/nats.yaml. Hardcoded by design — values.yaml
+    # is not templated by Helm, so we can't compute the name from
+    # .Release.Name here. cozystack-engine names the HelmRelease after the
+    # PackageSource component key (cozy-dynamo-platform), which is the
+    # .Release.Name our templates see at install time. Our NATS template
+    # appends -nats; nats-application uses fullnameOverride = .Release.Name
+    # for resource naming, so the Service lands at the address below in
+    # the parent install's namespace (cozy-dynamo by Package convention).
+    # If the Package's components key is renamed, update both this value
+    # and templates/nats.yaml.
+    natsAddr: "nats://cozy-dynamo-platform-nats.cozy-dynamo.svc:4222"
     imagePullSecrets:
       - name: ngc-creds
     # Upstream chart 1.2.1 defaults the operator image tag to
