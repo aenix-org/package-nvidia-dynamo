@@ -1,23 +1,11 @@
-## @section Common parameters
+## @section External access
 ##
 
-## @param {string} [host] - Public hostname for the Dynamo HTTP frontend ingress. When empty no Ingress is created and the Frontend is only reachable via its ClusterIP Service.
+## @param {bool} ingress - Expose the Dynamo HTTP frontend through the tenant Ingress. Uses the namespace-scoped IngressClass and cert-manager ClusterIssuer cozystack already wires into every tenant — no extra config needed from the operator.
+ingress: false
+
+## @param {string} [host] - Override the public hostname. Empty falls back to `dynamo-<release>.<namespace-host>` where the host suffix is the tenant's namespace.host from the cozystack platform values.
 host: ""
-
-## @typedef {struct} Ingress
-## @field {bool} enabled - Emit an Ingress object for the Frontend Service. Requires `host` to be set.
-## @field {string} [className] - IngressClassName. Empty falls back to the cluster default IngressClass.
-## @field {map[string]string} [annotations] - Extra annotations to merge into the Ingress (cert-manager, nginx-ingress, etc.).
-## @field {bool} tls - Enable TLS termination at the Ingress. Pairs with cert-manager via the annotations above (e.g. cert-manager.io/cluster-issuer).
-## @field {string} [tlsSecretName] - Existing TLS Secret name. Empty = the chart generates `<release>-tls` and lets cert-manager provision it.
-
-## @param {Ingress} ingress - HTTP frontend Ingress configuration.
-ingress:
-  enabled: false
-  className: ""
-  annotations: {}
-  tls: false
-  tlsSecretName: ""
 
 ## @section Model serving
 ##

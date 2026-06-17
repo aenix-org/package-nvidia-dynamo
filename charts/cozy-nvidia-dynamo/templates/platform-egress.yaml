@@ -1,0 +1,48 @@
+{{- /*
+  CiliumNetworkPolicy — allow this tenant namespace to reach the
+  cluster-wide Dynamo platform in cozy-dynamo.
+
+  Two distinct traffic flows that cozystack tenant default-deny blocks:
+
+  1. The Dynamo operator's conversion webhook for the
+     nvidia.com/v1alpha1 <-> v1beta1 DynamoGraphDeployment migration.
+     The apiserver invokes it during any LIST/GET of DGDs; without
+     egress to cozy-dynamo every kubectl get DGD fails with
+     'connect: operation not permitted'.
+
+  2. NATS — both the Frontend and the worker pods open client
+     connections to nats://<platform-release>-nats.cozy-dynamo.svc:4222
+     for Dynamo's event plane. Without egress the Frontend dies on
+     startup with 'Failed to connect to NATS: DNS error'.
+
+  Selecting all endpoints in the namespace by an empty
+  endpointSelector: the apiserver proxy initiates the webhook call
+  (we can't anticipate which pod), and the operator's webhook
+  Service expects connections from any namespace-local consumer.
+
+  ToEndpoints uses a namespace match: anything in cozy-dynamo. Pinning
+  to specific labels (e.g. app.kubernetes.io/name: dynamo-operator)
+  would miss the NATS Service which carries the upstream nats chart's
+  own labels.
+*/}}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-allow-to-dynamo-platform
+spec:
+  endpointSelector: {}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cozy-dynamo
+      toPorts:
+        - ports:
+            # operator webhook (used by apiserver conversion)
+            - port: "9443"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP
+            # NATS (Dynamo event plane)
+            - port: "4222"
+              protocol: TCP
