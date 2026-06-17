@@ -80,6 +80,16 @@ dynamo-platform:
   # within the same cluster (cluster-singleton).
   dynamo-operator:
     enabled: true
+    # Upstream chart 1.2.1 fires a crd-apply init container that
+    # invokes /crd-apply inside the operator image. NGC ships
+    # kubernetes-operator under separate semver tags (0.3.1 - 0.7.0
+    # at v1.2.1 chart cut) whose binary layout exposes only /manager
+    # — there is no /crd-apply at root. With upgradeCRD enabled the
+    # init container exits 128 with "no such file or directory" and
+    # the pod never starts. CRDs are bundled in the chart's crds/
+    # directory so the initial helm install still ships them; only
+    # cross-version upgrades that need server-side apply are skipped.
+    upgradeCRD: false
     # Kubernetes-backed service discovery: no etcd dependency. See the
     # note at the top of this section for the rationale.
     discoveryBackend: kubernetes
