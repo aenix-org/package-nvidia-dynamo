@@ -16,7 +16,7 @@ spec:
       name: nvidia-dynamo-default-cozy-nvidia-dynamo
       namespace: cozy-system
     labels:
-      cozystack.io/ui: "true"
+      sharding.fluxcd.io/key: tenants
     prefix: nvidia-dynamo-
   dashboard:
     category: AI
@@ -39,3 +39,16 @@ spec:
         - serving
       - - spec
         - host
+  secrets:
+    exclude: []
+    include: []
+  services:
+    exclude: []
+    include:
+      - resourceNames:
+          - nvidia-dynamo-{{"{{"}} .name {{"}}"}}-frontend
+  ingresses:
+    exclude: []
+    include:
+      - resourceNames:
+          - nvidia-dynamo-{{"{{"}} .name {{"}}"}}-frontend
