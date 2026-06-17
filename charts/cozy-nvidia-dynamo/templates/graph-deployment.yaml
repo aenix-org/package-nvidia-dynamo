@@ -39,7 +39,7 @@
   and hardcoding cluster.local breaks DNS resolution from worker /
   frontend pods.
 */}}
-{{- $clusterDomain := default "cluster.local" (index .Values._cluster "cluster-domain") -}}
+{{- $clusterDomain := default "cluster.local" (index (.Values._cluster | default dict) "cluster-domain") -}}
 {{- $natsServer := printf "nats://%s-nats.%s.svc.%s:4222" .Release.Name .Release.Namespace $clusterDomain -}}
 ---
 apiVersion: nvidia.com/v1alpha1
