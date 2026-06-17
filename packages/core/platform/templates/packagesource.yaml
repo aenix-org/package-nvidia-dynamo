@@ -44,6 +44,12 @@ spec:
       components:
         - name: cozy-dynamo-platform
           path: cozy-dynamo-platform
+          install:
+            namespace: cozy-dynamo
+            releaseName: cozy-dynamo-platform
+            privileged: true
+          valuesFiles:
+            - values.yaml
 ---
 # PackageSource for the per-tenant DGD chart. The ApplicationDefinition
 # below references the ExternalArtifact generated from this source.
