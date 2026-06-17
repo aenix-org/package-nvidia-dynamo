@@ -70,6 +70,12 @@ spec:
       ingress:
         enabled: true
         host: {{ $ingressHost | quote }}
+        # Force-clear hostSuffix — dynamo-operator otherwise appends the
+        # last segment of KUBERNETES_CLUSTER_DOMAIN to `host`, which
+        # turns `dynamo-test.htdev.ktj.aspan.pro` into
+        # `…aspan.pro.local`. An explicit empty hostSuffix overrides
+        # the binary's default.
+        hostSuffix: ""
         ingressControllerClassName: {{ $ingressClass | quote }}
         tls:
           secretName: {{ printf "%s-tls" .Release.Name | quote }}
