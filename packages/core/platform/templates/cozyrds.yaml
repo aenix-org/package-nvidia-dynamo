@@ -19,7 +19,7 @@ spec:
       sharding.fluxcd.io/key: tenants
     prefix: nvidia-dynamo-
   dashboard:
-    category: AI
+    category: PaaS
     singular: NVIDIA Dynamo
     plural: NVIDIA Dynamo Deployments
     description: NVIDIA Dynamo distributed LLM inference platform (operator + NATS + etcd + Grove + optional model serving via DynamoGraphDeployment).
