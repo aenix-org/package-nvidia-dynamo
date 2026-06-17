@@ -1,0 +1,37 @@
+{{- /*
+  CiliumNetworkPolicy — allow DGD pods that participate in the Dynamo
+  service-discovery mesh to reach kube-apiserver.
+
+  The Dynamo runtime in Frontend + worker pods registers
+  DynamoWorkerMetadata CRs and watches EndpointSlices through the
+  in-cluster Kubernetes API. Cozystack's tenant default-deny would
+  otherwise drop those calls and the Frontend would never see any
+  registered worker (it would keep replying 503).
+
+  We cannot use cozystack's standard `allow-to-apiserver` CNP via the
+  `policy.cozystack.io/allow-to-apiserver` label — grove-operator does
+  not propagate labels from DGD `services.<svc>.labels` onto the pods
+  it creates (they land on the intermediate PodClique/PodCliqueSet
+  resources instead). So we ship a scoped CNP keyed on a label that
+  the dynamo-operator does emit on pods: `nvidia.com/dynamo-discovery-
+  enabled: "true"`. NATS / cert-manager / other unrelated pods in this
+  namespace are not selected and stay deny-by-default.
+*/}}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-allow-to-apiserver
+spec:
+  endpointSelector:
+    matchLabels:
+      nvidia.com/dynamo-discovery-enabled: "true"
+  egress:
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP

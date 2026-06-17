@@ -51,13 +51,6 @@ spec:
     Frontend:
       componentType: frontend
       replicas: 1
-      labels:
-        # Opt this pod into cozystack's standard `allow-to-apiserver`
-        # CiliumNetworkPolicy. The Dynamo runtime registers
-        # DynamoWorkerMetadata CRs and watches EndpointSlices through
-        # the in-cluster k8s API; without this label the tenant default
-        # deny would drop those calls.
-        policy.cozystack.io/allow-to-apiserver: "true"
       {{- with .Values.serving.modelDownloadSecret }}
       envFromSecret: {{ . }}
       {{- end }}
@@ -76,8 +69,6 @@ spec:
       componentType: worker
       subComponentType: decode
       replicas: {{ .Values.serving.decodeReplicas }}
-      labels:
-        policy.cozystack.io/allow-to-apiserver: "true"
       {{- with .Values.serving.modelDownloadSecret }}
       envFromSecret: {{ . }}
       {{- end }}
@@ -108,8 +99,6 @@ spec:
       componentType: worker
       subComponentType: prefill
       replicas: {{ .Values.serving.prefillReplicas }}
-      labels:
-        policy.cozystack.io/allow-to-apiserver: "true"
       {{- with .Values.serving.modelDownloadSecret }}
       envFromSecret: {{ . }}
       {{- end }}
@@ -142,8 +131,6 @@ spec:
     {{ $workerClass }}:
       componentType: worker
       replicas: {{ .Values.serving.prefillReplicas }}
-      labels:
-        policy.cozystack.io/allow-to-apiserver: "true"
       {{- with .Values.serving.modelDownloadSecret }}
       envFromSecret: {{ . }}
       {{- end }}
