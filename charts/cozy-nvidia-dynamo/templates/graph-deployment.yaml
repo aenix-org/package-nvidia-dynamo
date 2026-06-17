@@ -78,6 +78,14 @@ spec:
           {{- if eq $solver "http01" }}
           acme.cert-manager.io/http01-ingress-ingressclassname: {{ $ingressClass | quote }}
           {{- end }}
+        # Cozystack dashboard discovers tenant ingresses by these
+        # labels — without them the Ingress is invisible in the UI
+        # Resource view (see apps/kubernetes for the canonical pattern).
+        labels:
+          apps.cozystack.io/application.group: apps.cozystack.io
+          apps.cozystack.io/application.kind: NvidiaDynamo
+          apps.cozystack.io/application.name: {{ .Release.Name | trimPrefix "nvidia-dynamo-" }}
+          internal.cozystack.io/tenantresource: "true"
       {{- end }}
       {{- with .Values.serving.modelDownloadSecret }}
       envFromSecret: {{ . }}
