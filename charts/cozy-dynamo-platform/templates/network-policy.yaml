@@ -45,18 +45,14 @@ spec:
               protocol: TCP
   ingress:
     # apiserver-initiated webhook calls (validating + conversion).
+    # Allow both 443 (Service-facing port — Cilium may evaluate before
+    # kube-proxy DNAT) and 9443 (container-listening port).
     - fromEntities:
         - kube-apiserver
-      toPorts:
-        - ports:
-            - port: "9443"
-              protocol: TCP
-    # Allow pods in any namespace to reach the operator webhook —
-    # tenants exercising kubectl explain / DGD introspection arrive
-    # here too.
-    - fromEntities:
         - cluster
       toPorts:
         - ports:
+            - port: "443"
+              protocol: TCP
             - port: "9443"
               protocol: TCP
