@@ -56,12 +56,3 @@ dynamo-platform:
       manager:
         image:
           tag: "1.2.1"
-    imagePullSecrets:
-      - name: ngc-creds
-    # Upstream chart 1.2.1 defaults the operator image tag to
-    # .Chart.AppVersion (1.2.1), but NGC ships kubernetes-operator under
-    # 0.x tags. Pin explicitly to the latest published tag.
-    controllerManager:
-      manager:
-        image:
-          tag: "0.7.0"
