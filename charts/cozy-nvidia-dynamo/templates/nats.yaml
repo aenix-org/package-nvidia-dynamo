@@ -1,0 +1,39 @@
+{{- /*
+  Per-tenant NATS — event-plane bus for THIS NvidiaDynamo instance.
+
+  Goes through the cozystack apps/nats chart by directly referencing
+  its ExternalArtifact (bypassing the apps.cozystack.io/v1alpha1 NATS
+  CR / dashboard path so a tenant doesn't see two separate NATS
+  entries — the one they explicitly created vs. the one cozystack
+  rendered for them as a side-effect of NvidiaDynamo).
+
+  Lives in the tenant namespace, so cozy-lib's tenant-identifier
+  validator passes (the validator fails outside tenant-* and is what
+  blocks the same chart from running in cozy-dynamo).
+
+  Service ends up at <release>-nats.<release-namespace>.svc:4222
+  (apps/nats sets fullnameOverride to .Release.Name). The Dynamo
+  Frontend / worker pods reach it via the NATS_SERVER env injected
+  in templates/graph-deployment.yaml — no cross-ns Cilium hop, no
+  shared platform-wide NATS to saturate as tenants scale out.
+*/}}
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: {{ .Release.Name }}-nats
+spec:
+  interval: 5m
+  chartRef:
+    kind: ExternalArtifact
+    name: cozystack-nats-application-default-nats
+    namespace: cozy-system
+  valuesFrom:
+    - kind: Secret
+      name: cozystack-values
+  values:
+    replicas: 2
+    resourcesPreset: t1.small
+    jetstream:
+      enabled: true
+      size: 10Gi

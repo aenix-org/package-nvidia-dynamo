@@ -6,14 +6,14 @@
 ## the tenant-facing `cozy-nvidia-dynamo` chart, which only emits
 ## DynamoGraphDeployment CRs against the operator deployed here.
 ##
-## NATS: we use the bundled NATS subchart from the vendored
-## dynamo-platform tree. The cozystack apps/nats chart (Pattern C / direct
-## HR ref) is unusable here because it relies on cozy-lib RBAC helpers
-## that fail with "'<ns>' is not a valid tenant identifier" outside
-## tenant-* namespaces — and the Dynamo platform deliberately lives in
-## cozy-dynamo (a system namespace). Bundled NATS keeps things local to
-## one Helm release; the operator auto-computes natsAddr from .Release.*
-## when global.nats.install is true (see upstream operator-config.yaml).
+## NATS: lives in each tenant namespace, not here. The cozy-nvidia-dynamo
+## tenant chart ships its own NATS HelmRelease + injects NATS_SERVER per
+## DGD pod via the Frontend/worker envs. This keeps every NvidiaDynamo
+## isolated to its own tenant ns (no cluster-wide NATS to saturate, no
+## cross-namespace Cilium hops). The operator's natsAddr is intentionally
+## left empty so the operator does NOT inject a platform-wide NATS_SERVER
+## env that would override the per-DGD value at the bottom of the env
+## list (Kubernetes envs use last-wins on duplicate names).
 ##
 ## etcd: the upstream chart's Bitnami etcd dependency is dropped during
 ## vendoring (Bitnami images are forbidden in this org). The operator is
@@ -24,7 +24,8 @@
 dynamo-platform:
   global:
     nats:
-      install: true
+      # Per-tenant NATS — shipped from the cozy-nvidia-dynamo wrapper.
+      install: false
     etcd:
       install: false
     grove:
@@ -36,6 +37,10 @@ dynamo-platform:
     # See cozy-nvidia-dynamo/values.yaml for the long-form reason.
     upgradeCRD: false
     discoveryBackend: kubernetes
+    # Empty natsAddr — operator must not inject a NATS_SERVER env into
+    # DGD pods, otherwise it overrides the tenant-local value set in
+    # graph-deployment.yaml services.<svc>.envs.
+    natsAddr: ""
     imagePullSecrets:
       - name: ngc-creds
     # Operator image must match the chart's argv contract. Chart 1.2.1
