@@ -1,0 +1,38 @@
+## @section Platform-wide defaults
+##
+## This chart installs the NVIDIA Dynamo platform components cluster-wide
+## (operator + NATS + Grove + kai-scheduler). It is consumed by a Cozystack
+## `Package` CR in `cozy-system` and is the cluster-singleton counterpart to
+## the tenant-facing `cozy-nvidia-dynamo` chart, which only emits
+## DynamoGraphDeployment CRs against the operator deployed here.
+##
+## etcd: the upstream chart's Bitnami etcd dependency is dropped during
+## vendoring (Bitnami images are forbidden in this org). The operator is
+## pinned to `discoveryBackend: kubernetes`, so neither it nor the worker
+## runtime needs etcd — discovery flows through the Kubernetes API and
+## NATS handles the event plane.
+
+dynamo-platform:
+  global:
+    nats:
+      install: true
+    etcd:
+      install: false
+    grove:
+      install: true
+    kai-scheduler:
+      install: false
+  dynamo-operator:
+    enabled: true
+    # See cozy-nvidia-dynamo/values.yaml for the long-form reason.
+    upgradeCRD: false
+    discoveryBackend: kubernetes
+    imagePullSecrets:
+      - name: ngc-creds
+    # Upstream chart 1.2.1 defaults the operator image tag to
+    # .Chart.AppVersion (1.2.1), but NGC ships kubernetes-operator under
+    # 0.x tags. Pin explicitly to the latest published tag.
+    controllerManager:
+      manager:
+        image:
+          tag: "0.7.0"

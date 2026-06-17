@@ -1,15 +1,13 @@
 apiVersion: v2
-name: cozy-nvidia-dynamo
-description: NVIDIA Dynamo distributed LLM inference platform, packaged as a Cozystack external app
+name: cozy-dynamo-platform
+description: NVIDIA Dynamo platform components (operator + NATS + Grove + kai-scheduler), packaged as a cluster-singleton Cozystack system app
 type: application
 version: 0.0.0 # Placeholder, the actual version is set during build
 appVersion: "1.2.1"
 keywords:
   - nvidia
   - dynamo
-  - llm
-  - inference
-  - gpu
+  - operator
 home: https://cozystack.io
 sources:
   - https://github.com/aenix-org/package-nvidia-dynamo
@@ -18,3 +16,7 @@ maintainers:
   - name: Aenix
     email: support@aenix.io
 icon: https://cozystack.io/img/logo.svg
+dependencies:
+  - name: dynamo-platform
+    version: 1.2.1
+    repository: ""

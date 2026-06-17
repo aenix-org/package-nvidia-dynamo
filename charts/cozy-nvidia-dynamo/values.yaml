@@ -6,10 +6,11 @@ host: ""
 
 ## @section Model serving
 ##
-## When `serving.enabled: true`, the chart emits a DynamoGraphDeployment CR
-## that the Dynamo operator (rendered by the dynamo-platform subchart)
-## reconciles into Frontend + worker Deployments. Set to false to install
-## the platform components only.
+## This chart emits a `DynamoGraphDeployment` CR which the cluster-wide
+## dynamo-operator (deployed by the `cozy-dynamo-platform` package) reconciles
+## into Frontend + worker Deployments. The wrapper does NOT install the
+## operator / NATS / Grove itself — those are cluster singletons handled
+## by `cozy-dynamo-platform`.
 
 ## @typedef {struct} Serving
 ## @field {bool} enabled - Emit a DynamoGraphDeployment CR for the model below.
@@ -41,70 +42,3 @@ serving:
   decodeReplicas: 0
   gpusPerWorker: 1
   gpuProduct: ""
-
-## @section dynamo-platform subchart overrides
-##
-## Values keyed under `dynamo-platform.*` flow straight through to the
-## vendored ai-dynamo/dynamo platform chart. The defaults below pin
-## sensible Cozystack-friendly behavior; operators can override via the
-## Package CR (cluster-wide) or the NvidiaDynamo CR (per-instance).
-##
-## etcd: the upstream chart's Bitnami etcd dependency is dropped in
-## hack/update.sh (Bitnami images are forbidden in this org). We pin
-## the operator to `discoveryBackend: kubernetes` so neither the
-## operator nor the worker runtime needs etcd — service discovery
-## flows through the Kubernetes API via the operator-managed
-## DynamoWorkerMetadata CRDs. NATS still handles the event plane.
-##
-## Switching to etcd-backed discovery requires an upstream-side change
-## to dynamo-operator's OperatorConfiguration to accept etcd TLS
-## settings (the v1.2.1 schema only takes an etcdAddress URL with no
-## TLS hook). Until that lands, operators cannot wire a TLS-secured
-## cozystack `Etcd` instance into the operator binary.
-
-dynamo-platform:
-  # Toggles for upstream subcharts.
-  global:
-    nats:
-      install: true
-    etcd:
-      # Always false — Bitnami chart was stripped during vendor; provide
-      # etcd externally (e.g. cozystack `Etcd` CR) and point the operator
-      # at it via dynamo-operator.* overrides.
-      install: false
-    grove:
-      install: true
-    kai-scheduler:
-      install: false
-  # Operator toggle — set to false on additional NvidiaDynamo instances
-  # within the same cluster (cluster-singleton).
-  dynamo-operator:
-    enabled: true
-    # Upstream chart 1.2.1 fires a crd-apply init container that
-    # invokes /crd-apply inside the operator image. NGC ships
-    # kubernetes-operator under separate semver tags (0.3.1 - 0.7.0
-    # at v1.2.1 chart cut) whose binary layout exposes only /manager
-    # — there is no /crd-apply at root. With upgradeCRD enabled the
-    # init container exits 128 with "no such file or directory" and
-    # the pod never starts. CRDs are bundled in the chart's crds/
-    # directory so the initial helm install still ships them; only
-    # cross-version upgrades that need server-side apply are skipped.
-    upgradeCRD: false
-    # Kubernetes-backed service discovery: no etcd dependency. See the
-    # note at the top of this section for the rationale.
-    discoveryBackend: kubernetes
-    # Required to pull nvcr.io/nvidia/ai-dynamo/kubernetes-operator —
-    # anonymous pulls return 404, see README.md for the NGC API key
-    # provisioning steps. The Secret must exist in cozy-dynamo before
-    # the operator Deployment is rolled out.
-    imagePullSecrets:
-      - name: ngc-creds
-    # Pin the operator image tag explicitly. Upstream chart 1.2.1
-    # defaults to .Chart.AppVersion = 1.2.1, but NGC publishes the
-    # operator under semver-incompatible tags (0.3.1, 0.4.0, …, 0.7.0
-    # latest). Without this override the operator pod ends up in
-    # ImagePullBackOff trying to fetch a tag that does not exist.
-    controllerManager:
-      manager:
-        image:
-          tag: "0.7.0"

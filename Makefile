@@ -1,8 +1,11 @@
 .PHONY: update lint template package push push-bundle clean help
 
-CHART_DIR    := charts/cozy-nvidia-dynamo
-PLATFORM_DIR := packages/core/platform
-DIST_DIR     := _dist
+PLATFORM_CHART_DIR := charts/cozy-dynamo-platform
+TENANT_CHART_DIR   := charts/cozy-nvidia-dynamo
+PLATFORM_DIR       := packages/core/platform
+DIST_DIR           := _dist
+
+CHART_DIR := $(TENANT_CHART_DIR)
 
 REGISTRY    := ghcr.io/aenix-org
 CHARTS_REPO := $(REGISTRY)/charts
@@ -31,18 +34,22 @@ update:
 	UPSTREAM_TAG=$${UPSTREAM_TAG:-v1.2.1} hack/update.sh
 
 lint:
-	helm lint $(CHART_DIR)
+	helm lint $(PLATFORM_CHART_DIR)
+	helm lint $(TENANT_CHART_DIR)
 	helm lint $(PLATFORM_DIR)
 
 template:
-	@echo "=== $(CHART_DIR) ==="
-	helm template ci $(CHART_DIR)
+	@echo "=== $(PLATFORM_CHART_DIR) ==="
+	helm template ci $(PLATFORM_CHART_DIR)
+	@echo "=== $(TENANT_CHART_DIR) ==="
+	helm template ci $(TENANT_CHART_DIR)
 	@echo "=== $(PLATFORM_DIR) ==="
 	helm template ci $(PLATFORM_DIR)
 
 package: lint
 	mkdir -p $(DIST_DIR)
-	helm package $(CHART_DIR) --destination $(DIST_DIR)
+	helm package $(PLATFORM_CHART_DIR) --destination $(DIST_DIR)
+	helm package $(TENANT_CHART_DIR)   --destination $(DIST_DIR)
 
 push: package
 	@for tgz in $(DIST_DIR)/*.tgz; do \

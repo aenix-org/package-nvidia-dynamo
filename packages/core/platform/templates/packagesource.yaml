@@ -29,5 +29,12 @@ spec:
   variants:
     - name: default
       components:
+        # Cluster-singleton platform: dynamo-operator + NATS + Grove +
+        # kai-scheduler. Activated once per cluster via a Package CR.
+        - name: cozy-dynamo-platform
+          path: cozy-dynamo-platform
+        # Per-tenant DynamoGraphDeployment wrapper. Instantiated by the
+        # cozystack-engine each time a tenant creates a NvidiaDynamo CR
+        # through the dashboard / ApplicationDefinition.
         - name: cozy-nvidia-dynamo
           path: cozy-nvidia-dynamo

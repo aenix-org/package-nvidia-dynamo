@@ -66,17 +66,20 @@ jobs:
 
       - name: Override Chart.yaml version
         # Always stamp the rendered version (both tag and main-branch) so
-        # the cozy-nvidia-dynamo wrapper and the platform chart agree on a
-        # single version string. helm package refuses 0.0.0 placeholders.
+        # the platform chart, the two cozystack-side charts, and the
+        # cozystack-platform meta-chart agree on a single version string.
+        # helm package refuses 0.0.0 placeholders.
         run: |
           ver="${{ steps.tag.outputs.value }}"
           sed -i "s/^version:.*/version: ${ver}/" charts/cozy-nvidia-dynamo/Chart.yaml
+          sed -i "s/^version:.*/version: ${ver}/" charts/cozy-dynamo-platform/Chart.yaml
           sed -i "s/^version:.*/version: ${ver}/" packages/core/platform/Chart.yaml
 
-      - name: Package wrapper chart
+      - name: Package wrapper charts
         run: |
           mkdir -p _dist
-          helm package charts/cozy-nvidia-dynamo/ --destination _dist/
+          helm package charts/cozy-dynamo-platform/ --destination _dist/
+          helm package charts/cozy-nvidia-dynamo/   --destination _dist/
 
       - name: Push wrapper chart
         run: |

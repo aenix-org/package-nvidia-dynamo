@@ -18,16 +18,22 @@ jobs:
       - name: Set up Helm
         uses: azure/setup-helm@v4
 
-      - name: Lint wrapper chart
+      - name: Lint platform components chart
+        run: helm lint charts/cozy-dynamo-platform/
+
+      - name: Lint tenant wrapper chart
         run: helm lint charts/cozy-nvidia-dynamo/
 
-      - name: Lint platform chart
+      - name: Lint cozystack-platform chart
         run: helm lint packages/core/platform/
 
-      - name: Template wrapper chart (default values)
+      - name: Template platform components chart
+        run: helm template ci-dryrun charts/cozy-dynamo-platform/ > /dev/null
+
+      - name: Template tenant wrapper chart
         run: helm template ci-dryrun charts/cozy-nvidia-dynamo/ > /dev/null
 
-      - name: Template platform chart
+      - name: Template cozystack-platform chart
         run: helm template ci-dryrun packages/core/platform/ > /dev/null
 
       - name: Validate platform manifests render to expected resources
