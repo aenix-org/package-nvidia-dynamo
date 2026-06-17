@@ -10,7 +10,7 @@ metadata:
   namespace: cozy-system
 spec:
   interval: 5m
-  url: oci://ghcr.io/aenix-org/charts/nvidia-dynamo
+  url: oci://ghcr.io/aenix-org/charts/cozy-nvidia-dynamo
   ref:
     # Match any semver tag including pre-releases. Tighten in production by
     # bumping the lower bound after first stable release (>=1.0.0 etc.).
