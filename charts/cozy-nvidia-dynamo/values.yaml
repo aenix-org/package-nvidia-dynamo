@@ -89,3 +89,12 @@ dynamo-platform:
     # the operator Deployment is rolled out.
     imagePullSecrets:
       - name: ngc-creds
+    # Pin the operator image tag explicitly. Upstream chart 1.2.1
+    # defaults to .Chart.AppVersion = 1.2.1, but NGC publishes the
+    # operator under semver-incompatible tags (0.3.1, 0.4.0, …, 0.7.0
+    # latest). Without this override the operator pod ends up in
+    # ImagePullBackOff trying to fetch a tag that does not exist.
+    controllerManager:
+      manager:
+        image:
+          tag: "0.7.0"
