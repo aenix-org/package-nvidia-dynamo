@@ -1,21 +1,52 @@
 ---
-# OCI artifact carrying the nvidia-dynamo wrapper chart, published by the
-# aenix-org/package-nvidia-dynamo CI pipeline. The cozystack-engine consumes this
-# via the PackageSource below and produces an ExternalArtifact per variant
-# that ApplicationDefinition.release.chartRef references.
+# Platform-side OCI artifact: dynamo-operator + NATS HelmRelease +
+# Grove + kai-scheduler + apiserver CNP. Installed once per cluster
+# via a Package CR; tenants do not see it.
 apiVersion: source.toolkit.fluxcd.io/v1beta2
 kind: OCIRepository
 metadata:
-  name: nvidia-dynamo-packages
+  name: cozy-dynamo-platform-pkg
+  namespace: cozy-system
+spec:
+  interval: 5m
+  url: oci://ghcr.io/aenix-org/charts/cozy-dynamo-platform
+  ref:
+    semver: ">=0.0.0-0"
+---
+# Tenant-side OCI artifact: per-tenant DynamoGraphDeployment wrapper.
+# Consumed by cozystack-engine when a tenant creates a NvidiaDynamo CR
+# from the dashboard.
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: OCIRepository
+metadata:
+  name: cozy-nvidia-dynamo-pkg
   namespace: cozy-system
 spec:
   interval: 5m
   url: oci://ghcr.io/aenix-org/charts/cozy-nvidia-dynamo
   ref:
-    # Match any semver tag including pre-releases. Tighten in production by
-    # bumping the lower bound after first stable release (>=1.0.0 etc.).
     semver: ">=0.0.0-0"
 ---
+# PackageSource for the cluster-singleton platform component.
+# Apply the matching Package CR (_packages/package.yaml) to install.
+apiVersion: cozystack.io/v1alpha1
+kind: PackageSource
+metadata:
+  name: nvidia-dynamo-platform
+  namespace: cozy-system
+spec:
+  sourceRef:
+    kind: OCIRepository
+    name: cozy-dynamo-platform-pkg
+    namespace: cozy-system
+  variants:
+    - name: default
+      components:
+        - name: cozy-dynamo-platform
+          path: cozy-dynamo-platform
+---
+# PackageSource for the per-tenant DGD chart. The ApplicationDefinition
+# below references the ExternalArtifact generated from this source.
 apiVersion: cozystack.io/v1alpha1
 kind: PackageSource
 metadata:
@@ -24,17 +55,10 @@ metadata:
 spec:
   sourceRef:
     kind: OCIRepository
-    name: nvidia-dynamo-packages
+    name: cozy-nvidia-dynamo-pkg
     namespace: cozy-system
   variants:
     - name: default
       components:
-        # Cluster-singleton platform: dynamo-operator + NATS + Grove +
-        # kai-scheduler. Activated once per cluster via a Package CR.
-        - name: cozy-dynamo-platform
-          path: cozy-dynamo-platform
-        # Per-tenant DynamoGraphDeployment wrapper. Instantiated by the
-        # cozystack-engine each time a tenant creates a NvidiaDynamo CR
-        # through the dashboard / ApplicationDefinition.
         - name: cozy-nvidia-dynamo
           path: cozy-nvidia-dynamo

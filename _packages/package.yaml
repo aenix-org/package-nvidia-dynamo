@@ -1,19 +1,18 @@
 # Cluster-singleton install of the NVIDIA Dynamo platform (operator,
-# NATS, Grove, kai-scheduler). Tenants do NOT create this CR — they
-# create NvidiaDynamo CRs, which only render DynamoGraphDeployment
-# objects against the operator deployed here.
+# NATS, Grove, kai-scheduler). Apply once per cluster. The Package
+# name matches the PackageSource it consumes (nvidia-dynamo-platform).
 #
-# Apply once per cluster.
+# Tenants do NOT create or see this CR. They create NvidiaDynamo CRs
+# through the dashboard, which the cozystack-engine reconciles using
+# the sibling `nvidia-dynamo` PackageSource (per-tenant DGD wrapper).
 ---
 apiVersion: cozystack.io/v1alpha1
 kind: Package
 metadata:
-  name: nvidia-dynamo
+  name: nvidia-dynamo-platform
   namespace: cozy-system
 spec:
   variant: default
   components:
     cozy-dynamo-platform:
-      # Per-component overrides go here when the operator wants to pin a
-      # chart-level default cluster-wide.
       values: {}
