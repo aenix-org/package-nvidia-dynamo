@@ -38,6 +38,21 @@ dynamo-platform:
     discoveryBackend: kubernetes
     imagePullSecrets:
       - name: ngc-creds
+    # Operator image must match the chart's argv contract. Chart 1.2.1
+    # passes --config=/etc/dynamo-operator/config.yaml; the 0.x image
+    # binary does NOT recognise that flag and crashes with
+    # "flag provided but not defined: -config". Tag 1.2.1 was added on
+    # nvcr.io after the initial 0.x train, but the chart still defaults
+    # tag to .Chart.AppVersion (1.2.1) which lacks an OCI v2 manifest
+    # without the right Accept header — Helm passes it through but the
+    # kubelet handles content negotiation, so the runtime pull works.
+    # Pinning explicitly keeps that contract explicit.
+    controllerManager:
+      manager:
+        image:
+          tag: "1.2.1"
+    imagePullSecrets:
+      - name: ngc-creds
     # Upstream chart 1.2.1 defaults the operator image tag to
     # .Chart.AppVersion (1.2.1), but NGC ships kubernetes-operator under
     # 0.x tags. Pin explicitly to the latest published tag.

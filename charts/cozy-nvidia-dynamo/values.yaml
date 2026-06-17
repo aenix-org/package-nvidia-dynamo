@@ -35,7 +35,7 @@ serving:
   modelName: "Qwen/Qwen2.5-7B-Instruct"
   modelDownloadSecret: ""
   image: ""
-  imageTag: "0.7.0"
+  imageTag: "1.2.1"
   imagePullSecrets:
     - name: ngc-creds
   prefillReplicas: 1
