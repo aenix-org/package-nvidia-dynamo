@@ -1,0 +1,38 @@
+{{- /*
+  CiliumNetworkPolicy — apiserver egress for the operator components.
+
+  Cozystack tenant namespaces default-deny egress and grant Kubernetes API
+  reachability through a policy that selects pods carrying
+  `policy.cozystack.io/allow-to-apiserver: "true"`. The upstream
+  dynamo-operator and grove-operator charts don't expose a podLabels hook,
+  so we can't inject that label on their pod templates without forking.
+
+  Instead we ship a parallel CNP that matches the same set of pods by
+  their well-known component labels (set by the upstream charts) and
+  permits egress to the `kube-apiserver` Cilium entity on 6443.
+
+  Selecting by both labels in a single rule via `matchExpressions` keeps
+  the policy a single Cilium endpoint match, identical in shape to the
+  cluster-wide allow-to-apiserver policy. If a future tenant doesn't
+  carry the cluster-wide CNP, this rule still stands on its own.
+*/}}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-allow-to-apiserver
+spec:
+  endpointSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - dynamo-operator
+          - grove-operator
+  egress:
+    - toEntities:
+        - kube-apiserver
+    - toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
