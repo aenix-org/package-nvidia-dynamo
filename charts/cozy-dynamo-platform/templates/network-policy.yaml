@@ -1,26 +1,33 @@
 {{- /*
-  CiliumNetworkPolicy — apiserver egress for the operator components.
+  CiliumNetworkPolicy — apiserver round-trip + tenant ingress for the
+  Dynamo operator and Grove.
 
-  Cozystack tenant namespaces default-deny egress and grant Kubernetes API
-  reachability through a policy that selects pods carrying
-  `policy.cozystack.io/allow-to-apiserver: "true"`. The upstream
-  dynamo-operator and grove-operator charts don't expose a podLabels hook,
-  so we can't inject that label on their pod templates without forking.
+  Two rules in one policy because Cilium applies default-deny on BOTH
+  dimensions once a pod is selected by ANY policy:
 
-  Instead we ship a parallel CNP that matches the same set of pods by
-  their well-known component labels (set by the upstream charts) and
-  permits egress to the `kube-apiserver` Cilium entity on 6443.
+  1. egress  — operator pods reach kube-apiserver:6443 to watch DGDs
+                and update their CRD statuses. Cozystack tenant
+                namespaces gate this on the `policy.cozystack.io/
+                allow-to-apiserver: "true"` label; upstream charts do
+                not expose a podLabels hook so we ship the rule by
+                matching the well-known app.kubernetes.io/name labels
+                instead.
+  2. ingress — apiserver calls the operator's validating + conversion
+                webhook on 9443 during every DGD create/update/list,
+                and tenant Frontend / worker pods may call it for
+                introspection. Without the explicit allow Cilium drops
+                the apiserver leg with 'operation not permitted'
+                because rule (1) alone already triggered default-deny.
 
-  Selecting by both labels in a single rule via `matchExpressions` keeps
-  the policy a single Cilium endpoint match, identical in shape to the
-  cluster-wide allow-to-apiserver policy. If a future tenant doesn't
-  carry the cluster-wide CNP, this rule still stands on its own.
+  Selecting both apps in one matchExpressions keeps the policy a
+  single Cilium endpoint match — same shape as the cluster-wide
+  cozystack allow-to-apiserver policy.
 */}}
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: {{ .Release.Name }}-allow-to-apiserver
+  name: {{ .Release.Name }}-operator-network
 spec:
   endpointSelector:
     matchExpressions:
@@ -35,4 +42,21 @@ spec:
     - toPorts:
         - ports:
             - port: "6443"
+              protocol: TCP
+  ingress:
+    # apiserver-initiated webhook calls (validating + conversion).
+    - fromEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "9443"
+              protocol: TCP
+    # Allow pods in any namespace to reach the operator webhook —
+    # tenants exercising kubectl explain / DGD introspection arrive
+    # here too.
+    - fromEntities:
+        - cluster
+      toPorts:
+        - ports:
+            - port: "9443"
               protocol: TCP
