@@ -31,6 +31,13 @@ spec:
     kind: ExternalArtifact
     name: cozystack-nats-application-default-nats
     namespace: cozy-system
+  # apps/nats templates index .Values._cluster["cluster-domain"] for the
+  # in-cluster service FQDN suffix; that key is injected per-namespace by
+  # the cozystack-engine into the cozystack-values Secret. Without it the
+  # chart fails to render with 'index of untyped nil'.
+  valuesFrom:
+    - kind: Secret
+      name: cozystack-values
   values:
     replicas: 2
     resourcesPreset: t1.small
