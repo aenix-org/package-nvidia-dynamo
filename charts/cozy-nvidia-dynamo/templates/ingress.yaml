@@ -1,0 +1,51 @@
+{{- /*
+  HTTP Ingress for the Dynamo Frontend Service.
+
+  The Dynamo operator names the Frontend Service after the
+  DynamoGraphDeployment CR: <dgd-name>-frontend on port http/8000. Our
+  DGD CR uses .Release.Name, so the backing Service ends up at
+  {{ .Release.Name }}-frontend.
+
+  Skipped entirely unless both `ingress.enabled: true` AND `host` is
+  non-empty — a tenant that wants the Frontend reachable only inside
+  the cluster keeps the defaults and the ClusterIP Service is the only
+  reachable surface.
+
+  TLS: when ingress.tls is true we add a TLS block. The Secret name
+  defaults to <release>-tls if not overridden; combined with
+  cert-manager.io/cluster-issuer in ingress.annotations cert-manager
+  provisions and renews the cert automatically.
+*/}}
+{{- if and .Values.ingress.enabled .Values.host }}
+{{- $tlsSecret := default (printf "%s-tls" .Release.Name) .Values.ingress.tlsSecretName -}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-frontend
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    - hosts:
+        - {{ .Values.host | quote }}
+      secretName: {{ $tlsSecret | quote }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-frontend
+                port:
+                  name: http
+{{- end }}
