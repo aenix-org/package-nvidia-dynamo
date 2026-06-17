@@ -32,15 +32,3 @@ spec:
               protocol: TCP
             - port: "443"
               protocol: TCP
-    # Dynamo worker pods register themselves through the k8s API
-    # (DynamoWorkerMetadata CR + EndpointSlice reflector); without
-    # apiserver egress the runtime spams `client error (Connect)` and
-    # the Frontend never finds any worker (kept replying 503).
-    - toEntities:
-        - kube-apiserver
-      toPorts:
-        - ports:
-            - port: "6443"
-              protocol: TCP
-            - port: "443"
-              protocol: TCP
