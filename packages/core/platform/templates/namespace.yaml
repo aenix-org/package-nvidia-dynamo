@@ -1,0 +1,11 @@
+---
+# Namespace where the cluster-wide Dynamo platform components live
+# (operator, NATS, Grove, kai-scheduler). Tenant DynamoGraphDeployments
+# go into their own tenant namespaces; only the cluster-singleton bits
+# land here.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cozy-dynamo
+  labels:
+    cozystack.io/system: "true"

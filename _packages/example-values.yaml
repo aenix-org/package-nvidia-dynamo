@@ -1,0 +1,20 @@
+# Example NvidiaDynamo tenant resource for ttk gpu3 (3× RTX A6000).
+# Spins up an aggregated single-worker vLLM serving of Qwen 2.5 7B.
+---
+apiVersion: apps.cozystack.io/v1alpha1
+kind: NvidiaDynamo
+metadata:
+  name: demo
+  namespace: tenant-root
+spec:
+  host: dynamo.example.ttk
+  serving:
+    enabled: true
+    backend: vllm
+    modelName: "Qwen/Qwen2.5-7B-Instruct"
+    modelDownloadSecret: ""
+    imageTag: "0.7.0"
+    prefillReplicas: 1
+    decodeReplicas: 0
+    gpusPerWorker: 1
+    gpuProduct: "NVIDIA-RTX-A6000"

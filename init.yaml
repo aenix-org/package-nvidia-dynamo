@@ -1,0 +1,29 @@
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: nvidia-dynamo
+  namespace: cozy-public
+spec:
+  interval: 1m0s
+  url: https://github.com/aenix-org/package-nvidia-dynamo
+  ref:
+    branch: main
+  timeout: 60s
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: nvidia-dynamo
+  namespace: cozy-system
+spec:
+  interval: 5m
+  targetNamespace: cozy-system
+  chart:
+    spec:
+      chart: ./packages/core/platform
+      sourceRef:
+        kind: GitRepository
+        name: nvidia-dynamo
+        namespace: cozy-public
+      reconcileStrategy: Revision

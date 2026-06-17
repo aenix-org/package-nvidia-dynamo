@@ -1,0 +1,81 @@
+## @section Common parameters
+##
+
+## @param {string} [host] - Public hostname for the Dynamo HTTP frontend ingress (leave empty to skip Ingress).
+host: ""
+
+## @section Model serving
+##
+## When `serving.enabled: true`, the chart emits a DynamoGraphDeployment CR
+## that the Dynamo operator (rendered by the dynamo-platform subchart)
+## reconciles into Frontend + worker Deployments. Set to false to install
+## the platform components only.
+
+## @typedef {struct} Serving
+## @field {bool} enabled - Emit a DynamoGraphDeployment CR for the model below.
+## @field {enum:vllm,sglang,trtllm} backend - Inference backend.
+## @field {string} modelName - Model identifier (HuggingFace ID or local path).
+## @field {string} [modelDownloadSecret] - Name of a Secret with HF_TOKEN for gated HuggingFace models. The whole Secret is sourced into the worker pod via envFromSecret, so each key becomes an env var.
+## @field {string} [image] - Full Dynamo runtime image override. Leave empty to use nvcr.io/nvidia/ai-dynamo/<backend>-runtime:<imageTag>.
+## @field {string} imageTag - Tag for the default nvcr.io runtime image (ignored when `image` is set explicitly).
+## @field {[]ImagePullSecret} imagePullSecrets - Image pull Secrets injected into every Frontend/worker pod. Required when pulling from nvcr.io (anonymous pulls return 404). Create the secret first with `kubectl create secret docker-registry ngc-creds --docker-server=nvcr.io --docker-username='$oauthtoken' --docker-password=<NGC_API_KEY>`.
+## @field {int} prefillReplicas - Worker replicas in aggregated mode, or Prefill worker replicas in disaggregated mode.
+## @field {int} decodeReplicas - Decode worker replicas. 0 disables disaggregation (single aggregated worker).
+## @field {int} gpusPerWorker - GPUs per worker pod. Maps to resources.limits.gpu on the worker container.
+## @field {string} [gpuProduct] - Optional nodeSelector value for `nvidia.com/gpu.product` (e.g. NVIDIA-RTX-A6000) to pin workers to a specific GPU class.
+
+## @typedef {struct} ImagePullSecret
+## @field {string} name - Name of an existing Secret of type kubernetes.io/dockerconfigjson in the same namespace as the NvidiaDynamo CR.
+
+## @param {Serving} serving - DynamoGraphDeployment configuration.
+serving:
+  enabled: true
+  backend: vllm
+  modelName: "Qwen/Qwen2.5-7B-Instruct"
+  modelDownloadSecret: ""
+  image: ""
+  imageTag: "0.7.0"
+  imagePullSecrets:
+    - name: ngc-creds
+  prefillReplicas: 1
+  decodeReplicas: 0
+  gpusPerWorker: 1
+  gpuProduct: ""
+
+## @section dynamo-platform subchart overrides
+##
+## Values keyed under `dynamo-platform.*` flow straight through to the
+## vendored ai-dynamo/dynamo platform chart. The defaults below pin
+## sensible Cozystack-friendly behavior; operators can override via the
+## Package CR (cluster-wide) or the NvidiaDynamo CR (per-instance).
+##
+## etcd: the upstream chart's Bitnami etcd dependency is dropped in
+## hack/update.sh (Bitnami images are forbidden in this org). The
+## operator still expects an etcd endpoint for discovery; configure it
+## through `dynamo-platform.dynamo-operator.etcd.endpoint` or wire a
+## cozystack-managed Etcd CR in the same namespace by overriding here.
+
+dynamo-platform:
+  # Toggles for upstream subcharts.
+  global:
+    nats:
+      install: true
+    etcd:
+      # Always false — Bitnami chart was stripped during vendor; provide
+      # etcd externally (e.g. cozystack `Etcd` CR) and point the operator
+      # at it via dynamo-operator.* overrides.
+      install: false
+    grove:
+      install: true
+    kai-scheduler:
+      install: false
+  # Operator toggle — set to false on additional NvidiaDynamo instances
+  # within the same cluster (cluster-singleton).
+  dynamo-operator:
+    enabled: true
+    # Required to pull nvcr.io/nvidia/ai-dynamo/kubernetes-operator —
+    # anonymous pulls return 404, see README.md for the NGC API key
+    # provisioning steps. The Secret must exist in cozy-dynamo before
+    # the operator Deployment is rolled out.
+    imagePullSecrets:
+      - name: ngc-creds

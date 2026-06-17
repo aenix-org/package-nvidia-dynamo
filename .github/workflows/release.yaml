@@ -1,0 +1,102 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+
+# Two artifacts go out per release:
+#
+#   1. The wrapper Helm chart, pushed to oci://ghcr.io/aenix-org/charts/nvidia-dynamo.
+#      packages/core/platform/templates/packagesource.yaml references that path.
+#
+#   2. A cozystack-package bundle of packages/, pushed to
+#      oci://ghcr.io/aenix-org/package-nvidia-dynamo-platform-packages.
+#      Mirrors the kubernetes-switchcloud layout so an OCI-based init.yaml
+#      consumption path is available once we want to migrate off GitRepository.
+#
+# On main pushes both artifacts get an ephemeral `<chart-version>-sha-<short>`
+# tag; on v* tag pushes the tag-derived semver tag is used.
+
+jobs:
+  release:
+    name: Package and push charts and bundle
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Install flux CLI
+        uses: fluxcd/flux2/action@main
+
+      - name: Log in to GHCR (helm registry)
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | \
+            helm registry login ghcr.io \
+              --username "${{ github.actor }}" \
+              --password-stdin
+
+      # flux push artifact uses docker's config.json for OCI auth, separate
+      # from helm's own keyring. Without this step the bundle push gets
+      # `DENIED: requested access to the resource is denied`.
+      - name: Log in to GHCR (docker)
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute release tag
+        id: tag
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            value="${GITHUB_REF#refs/tags/v}"
+          else
+            base=$(awk '/^version:/ {gsub(/"/, "", $2); print $2}' charts/cozy-nvidia-dynamo/Chart.yaml)
+            value="${base}-sha-${GITHUB_SHA::8}"
+          fi
+          echo "value=${value}" >> "$GITHUB_OUTPUT"
+
+      - name: Override Chart.yaml version
+        # Always stamp the rendered version (both tag and main-branch) so
+        # the cozy-nvidia-dynamo wrapper and the platform chart agree on a
+        # single version string. helm package refuses 0.0.0 placeholders.
+        run: |
+          ver="${{ steps.tag.outputs.value }}"
+          sed -i "s/^version:.*/version: ${ver}/" charts/cozy-nvidia-dynamo/Chart.yaml
+          sed -i "s/^version:.*/version: ${ver}/" packages/core/platform/Chart.yaml
+
+      - name: Package wrapper chart
+        run: |
+          mkdir -p _dist
+          helm package charts/cozy-nvidia-dynamo/ --destination _dist/
+
+      - name: Push wrapper chart
+        run: |
+          # Charts go under /charts/ — kept symmetric with kubernetes-switchcloud
+          # so the same `oci://ghcr.io/aenix-org/charts/<name>` namespace holds
+          # every aenix-org external-apps chart. The packagesource.yaml
+          # OCIRepository url must agree with this path.
+          for tgz in _dist/*.tgz; do
+            helm push "$tgz" oci://ghcr.io/aenix-org/charts
+          done
+
+      - name: Push cozystack-package bundle
+        # Produces the artifact that an OCI-based init.yaml would consume
+        # (mirrors kubernetes-switchcloud-platform-packages). The current
+        # init.yaml in this repo is GitRepository-based, so this bundle is
+        # not yet referenced from the cluster — pushing it now keeps the
+        # OCI path ready for a future swap.
+        run: |
+          flux push artifact \
+            "oci://ghcr.io/aenix-org/package-nvidia-dynamo-platform-packages:${{ steps.tag.outputs.value }}" \
+            --path=packages \
+            --source="${{ github.server_url }}/${{ github.repository }}" \
+            --revision="${{ steps.tag.outputs.value }}@sha1:${{ github.sha }}"

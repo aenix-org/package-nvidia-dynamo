@@ -1,0 +1,6 @@
+apiVersion: v2
+name: nvidia-dynamo-platform
+description: Platform-level registration (HelmRepository / HelmChart / ApplicationDefinition) for the nvidia-dynamo external app
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

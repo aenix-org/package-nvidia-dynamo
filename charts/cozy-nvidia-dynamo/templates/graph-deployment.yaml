@@ -1,0 +1,132 @@
+{{- /*
+  DynamoGraphDeployment template — emits the tenant-facing CR that the
+  upstream Dynamo operator (rendered by the dynamo-platform subchart)
+  reconciles into a Frontend + worker Deployment graph.
+
+  Schema reference (operator API): nvidia.com/v1alpha1 DynamoGraphDeployment
+  as shipped in ai-dynamo/dynamo @ v1.2.1, see
+  examples/backends/{vllm,sglang,trtllm}/deploy/*.yaml.
+
+  Easy to get wrong, hard to spot:
+    - resources.limits.gpu (NOT nvidia.com/gpu); the operator translates.
+    - componentType must be "frontend" or "worker".
+    - subComponentType "prefill"/"decode" is set only on workers and only
+      in disaggregated mode; aggregated mode uses a single worker with no
+      subComponentType.
+    - mainContainer.image must be a Dynamo runtime image carrying both the
+      worker engine and the backend toolkit; nvcr.io ships prebuilt
+      <backend>-runtime images per backend.
+*/}}
+{{- if .Values.serving.enabled }}
+{{- $disagg := gt (int .Values.serving.decodeReplicas) 0 -}}
+{{- $backend := required "serving.backend is required (vllm|sglang|trtllm)" .Values.serving.backend -}}
+{{- $workerClass := "" -}}
+{{- if eq $backend "vllm"   }}{{- $workerClass = "VllmWorker"   -}}{{- end }}
+{{- if eq $backend "sglang" }}{{- $workerClass = "SglangWorker" -}}{{- end }}
+{{- if eq $backend "trtllm" }}{{- $workerClass = "TrtllmWorker" -}}{{- end }}
+{{- if not $workerClass }}{{- fail (printf "unsupported serving.backend %q; expected vllm|sglang|trtllm" $backend) -}}{{- end }}
+{{- $image := default (printf "nvcr.io/nvidia/ai-dynamo/%s-runtime:%s" $backend .Values.serving.imageTag) .Values.serving.image -}}
+---
+apiVersion: nvidia.com/v1alpha1
+kind: DynamoGraphDeployment
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  services:
+    Frontend:
+      componentType: frontend
+      replicas: 1
+      {{- with .Values.serving.modelDownloadSecret }}
+      envFromSecret: {{ . }}
+      {{- end }}
+      extraPodSpec:
+        {{- with .Values.serving.imagePullSecrets }}
+        imagePullSecrets:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        mainContainer:
+          image: {{ $image | quote }}
+    {{- if $disagg }}
+    {{ $backend | title }}DecodeWorker:
+      componentType: worker
+      subComponentType: decode
+      replicas: {{ .Values.serving.decodeReplicas }}
+      {{- with .Values.serving.modelDownloadSecret }}
+      envFromSecret: {{ . }}
+      {{- end }}
+      resources:
+        limits:
+          gpu: {{ .Values.serving.gpusPerWorker | quote }}
+      extraPodSpec:
+        {{- with .Values.serving.imagePullSecrets }}
+        imagePullSecrets:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.serving.gpuProduct }}
+        nodeSelector:
+          nvidia.com/gpu.product: {{ . }}
+        {{- end }}
+        mainContainer:
+          image: {{ $image | quote }}
+          command: ["python3", "-m", "dynamo.{{ $backend }}"]
+          args:
+            - --model
+            - {{ .Values.serving.modelName | quote }}
+            - --disaggregation-mode
+            - decode
+    {{ $backend | title }}PrefillWorker:
+      componentType: worker
+      subComponentType: prefill
+      replicas: {{ .Values.serving.prefillReplicas }}
+      {{- with .Values.serving.modelDownloadSecret }}
+      envFromSecret: {{ . }}
+      {{- end }}
+      resources:
+        limits:
+          gpu: {{ .Values.serving.gpusPerWorker | quote }}
+      extraPodSpec:
+        {{- with .Values.serving.imagePullSecrets }}
+        imagePullSecrets:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.serving.gpuProduct }}
+        nodeSelector:
+          nvidia.com/gpu.product: {{ . }}
+        {{- end }}
+        mainContainer:
+          image: {{ $image | quote }}
+          command: ["python3", "-m", "dynamo.{{ $backend }}"]
+          args:
+            - --model
+            - {{ .Values.serving.modelName | quote }}
+            - --disaggregation-mode
+            - prefill
+            - --kv-transfer-config
+            - '{"kv_connector":"NixlConnector","kv_role":"kv_both"}'
+    {{- else }}
+    {{ $workerClass }}:
+      componentType: worker
+      replicas: {{ .Values.serving.prefillReplicas }}
+      {{- with .Values.serving.modelDownloadSecret }}
+      envFromSecret: {{ . }}
+      {{- end }}
+      resources:
+        limits:
+          gpu: {{ .Values.serving.gpusPerWorker | quote }}
+      extraPodSpec:
+        {{- with .Values.serving.imagePullSecrets }}
+        imagePullSecrets:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.serving.gpuProduct }}
+        nodeSelector:
+          nvidia.com/gpu.product: {{ . }}
+        {{- end }}
+        mainContainer:
+          image: {{ $image | quote }}
+          command: ["python3", "-m", "dynamo.{{ $backend }}"]
+          args:
+            - --model
+            - {{ .Values.serving.modelName | quote }}
+    {{- end }}
+{{- end }}

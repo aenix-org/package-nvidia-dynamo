@@ -1,0 +1,23 @@
+# Cozystack Package CR that activates the nvidia-dynamo PackageSource
+# (variant `default`) inside the cluster. Apply this once per cluster
+# (typically in `cozy-system`) so the cozystack-engine starts producing
+# the ExternalArtifact that ApplicationDefinition.release.chartRef
+# references.
+#
+# Tenants do NOT create this CR themselves — they create NvidiaDynamo
+# resources via the dashboard, which the cozystack-engine reconciles
+# using the ExternalArtifact produced from this Package.
+---
+apiVersion: cozystack.io/v1alpha1
+kind: Package
+metadata:
+  name: nvidia-dynamo
+  namespace: cozy-system
+spec:
+  variant: default
+  components:
+    cozy-nvidia-dynamo:
+      # Per-component overrides go here when the operator wants to pin a
+      # chart-level default cluster-wide. Per-tenant values come from
+      # the NvidiaDynamo CR, not from this Package.
+      values: {}

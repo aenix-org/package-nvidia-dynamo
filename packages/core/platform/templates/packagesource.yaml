@@ -1,0 +1,33 @@
+---
+# OCI artifact carrying the nvidia-dynamo wrapper chart, published by the
+# aenix-org/package-nvidia-dynamo CI pipeline. The cozystack-engine consumes this
+# via the PackageSource below and produces an ExternalArtifact per variant
+# that ApplicationDefinition.release.chartRef references.
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: OCIRepository
+metadata:
+  name: nvidia-dynamo-packages
+  namespace: cozy-system
+spec:
+  interval: 5m
+  url: oci://ghcr.io/aenix-org/charts/nvidia-dynamo
+  ref:
+    # Match any semver tag including pre-releases. Tighten in production by
+    # bumping the lower bound after first stable release (>=1.0.0 etc.).
+    semver: ">=0.0.0-0"
+---
+apiVersion: cozystack.io/v1alpha1
+kind: PackageSource
+metadata:
+  name: nvidia-dynamo
+  namespace: cozy-system
+spec:
+  sourceRef:
+    kind: OCIRepository
+    name: nvidia-dynamo-packages
+    namespace: cozy-system
+  variants:
+    - name: default
+      components:
+        - name: cozy-nvidia-dynamo
+          path: cozy-nvidia-dynamo
