@@ -31,8 +31,16 @@
   through the v1alpha1 .spec.services.<svc>.envs list rather than the
   operator's cluster-wide auto-inject — the platform operator's
   natsAddr is empty by design (see cozy-dynamo-platform/values.yaml).
+
+  Cluster DNS domain comes from .Values._cluster["cluster-domain"]
+  (injected by cozystack-engine into every tenant HR via the
+  cozystack-values Secret). Cozystack clusters do NOT use the default
+  cluster.local — ttk sets dnsDomain: cozy.local at the Talos level,
+  and hardcoding cluster.local breaks DNS resolution from worker /
+  frontend pods.
 */}}
-{{- $natsServer := printf "nats://%s-nats.%s.svc.cluster.local:4222" .Release.Name .Release.Namespace -}}
+{{- $clusterDomain := default "cluster.local" (index .Values._cluster "cluster-domain") -}}
+{{- $natsServer := printf "nats://%s-nats.%s.svc.%s:4222" .Release.Name .Release.Namespace $clusterDomain -}}
 ---
 apiVersion: nvidia.com/v1alpha1
 kind: DynamoGraphDeployment
