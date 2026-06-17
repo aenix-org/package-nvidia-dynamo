@@ -50,10 +50,17 @@ serving:
 ## Package CR (cluster-wide) or the NvidiaDynamo CR (per-instance).
 ##
 ## etcd: the upstream chart's Bitnami etcd dependency is dropped in
-## hack/update.sh (Bitnami images are forbidden in this org). The
-## operator still expects an etcd endpoint for discovery; configure it
-## through `dynamo-platform.dynamo-operator.etcd.endpoint` or wire a
-## cozystack-managed Etcd CR in the same namespace by overriding here.
+## hack/update.sh (Bitnami images are forbidden in this org). We pin
+## the operator to `discoveryBackend: kubernetes` so neither the
+## operator nor the worker runtime needs etcd — service discovery
+## flows through the Kubernetes API via the operator-managed
+## DynamoWorkerMetadata CRDs. NATS still handles the event plane.
+##
+## Switching to etcd-backed discovery requires an upstream-side change
+## to dynamo-operator's OperatorConfiguration to accept etcd TLS
+## settings (the v1.2.1 schema only takes an etcdAddress URL with no
+## TLS hook). Until that lands, operators cannot wire a TLS-secured
+## cozystack `Etcd` instance into the operator binary.
 
 dynamo-platform:
   # Toggles for upstream subcharts.
@@ -73,6 +80,9 @@ dynamo-platform:
   # within the same cluster (cluster-singleton).
   dynamo-operator:
     enabled: true
+    # Kubernetes-backed service discovery: no etcd dependency. See the
+    # note at the top of this section for the rationale.
+    discoveryBackend: kubernetes
     # Required to pull nvcr.io/nvidia/ai-dynamo/kubernetes-operator —
     # anonymous pulls return 404, see README.md for the NGC API key
     # provisioning steps. The Secret must exist in cozy-dynamo before

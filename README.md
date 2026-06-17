@@ -38,10 +38,14 @@ up the configured model serving topology.
     `nvidia-container-toolkit-production` extensions, plus
     `nvidia-device-plugin` running on GPU nodes.
 - A storage class that can satisfy NATS PVCs.
-- An external etcd reachable from `cozy-dynamo` — the Bitnami etcd
-  subchart is stripped during vendoring (Bitnami images are forbidden in
-  this org). Point the operator at a cozystack-managed `Etcd` instance
-  via `dynamo-platform.dynamo-operator.etcdAddr` in your Package values.
+- **No etcd required.** Service discovery uses the Kubernetes API
+  (`discoveryBackend: kubernetes` — the upstream NVIDIA default). NATS
+  handles the event plane. The Bitnami etcd subchart that ships in the
+  upstream `dynamo-platform` chart is dropped during vendoring (Bitnami
+  images are forbidden in this org); the operator works without it.
+  Switching to etcd-backed discovery is blocked upstream until
+  dynamo-operator's `OperatorConfiguration` schema gains TLS fields for
+  etcd — track this if you need cozystack-`Etcd` integration.
 - An NGC API key in every namespace that pulls Dynamo runtime / operator
   images from `nvcr.io`. Anonymous pulls return `404`. Free NGC account
   at <https://ngc.nvidia.com/setup/api-key>; create the `ngc-creds`
