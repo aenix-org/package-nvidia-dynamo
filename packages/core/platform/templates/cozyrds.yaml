@@ -48,9 +48,9 @@ spec:
     exclude: []
     include:
       - resourceNames:
-          - nvidia-dynamo-{{"{{"}} .name {{"}}"}}-frontend
+          - "{{"{{"}} .name {{"}}"}}-frontend"
   ingresses:
     exclude: []
     include:
       - resourceNames:
-          - nvidia-dynamo-{{"{{"}} .name {{"}}"}}-frontend
+          - "{{"{{"}} .name {{"}}"}}-frontend"
