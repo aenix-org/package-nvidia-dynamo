@@ -41,12 +41,29 @@
 */}}
 {{- $clusterDomain := default "cluster.local" (index (.Values._cluster | default dict) "cluster-domain") -}}
 {{- $natsServer := printf "nats://%s-nats.%s.svc.%s:4222" .Release.Name .Release.Namespace $clusterDomain -}}
+{{- /* Pre-rendered fragments shared across all worker components. */ -}}
+{{- $ctx := merge (dict "natsServer" $natsServer) . -}}
+{{- $nodeSelector := include "cozy-nvidia-dynamo.nodeSelector"     $ctx -}}
+{{- $envs         := include "cozy-nvidia-dynamo.workerEnvs"        $ctx -}}
+{{- $argTail      := include "cozy-nvidia-dynamo.workerExtraArgs"   $ctx -}}
+{{- $volumeMounts := include "cozy-nvidia-dynamo.workerVolumeMounts" $ctx -}}
 ---
 apiVersion: nvidia.com/v1alpha1
 kind: DynamoGraphDeployment
 metadata:
   name: {{ .Release.Name }}
 spec:
+  {{- if .Values.serving.modelCache.enabled }}
+  # Persistent HuggingFace + torch.compile cache. Created by the
+  # operator (create: true) and mounted into every worker that
+  # references it via spec.services.<svc>.volumeMounts[].name=model-cache.
+  pvcs:
+    - name: model-cache
+      create: true
+      size: {{ .Values.serving.modelCache.size | quote }}
+      storageClass: {{ .Values.serving.modelCache.storageClass | quote }}
+      volumeAccessMode: {{ .Values.serving.modelCache.accessMode | quote }}
+  {{- end }}
   services:
     Frontend:
       componentType: frontend
@@ -63,8 +80,7 @@ spec:
       envFromSecret: {{ . }}
       {{- end }}
       envs:
-        - name: NATS_SERVER
-          value: {{ $natsServer | quote }}
+        {{- $envs | nindent 8 }}
       extraPodSpec:
         {{- with .Values.serving.imagePullSecrets }}
         imagePullSecrets:
@@ -81,19 +97,22 @@ spec:
       envFromSecret: {{ . }}
       {{- end }}
       envs:
-        - name: NATS_SERVER
-          value: {{ $natsServer | quote }}
+        {{- $envs | nindent 8 }}
       resources:
         limits:
           gpu: {{ .Values.serving.gpusPerWorker | quote }}
+      {{- with $volumeMounts }}
+      volumeMounts:
+        {{- . | nindent 8 }}
+      {{- end }}
       extraPodSpec:
         {{- with .Values.serving.imagePullSecrets }}
         imagePullSecrets:
           {{- toYaml . | nindent 10 }}
         {{- end }}
-        {{- with .Values.serving.gpuProduct }}
+        {{- with $nodeSelector }}
         nodeSelector:
-          nvidia.com/gpu.product: {{ . }}
+          {{- . | nindent 10 }}
         {{- end }}
         mainContainer:
           image: {{ $image | quote }}
@@ -103,8 +122,8 @@ spec:
             - {{ .Values.serving.modelName | quote }}
             - --disaggregation-mode
             - decode
-            {{- range .Values.serving.extraArgs }}
-            - {{ . | quote }}
+            {{- with $argTail }}
+            {{- . | nindent 12 }}
             {{- end }}
     {{ $backend | title }}PrefillWorker:
       componentType: worker
@@ -114,19 +133,22 @@ spec:
       envFromSecret: {{ . }}
       {{- end }}
       envs:
-        - name: NATS_SERVER
-          value: {{ $natsServer | quote }}
+        {{- $envs | nindent 8 }}
       resources:
         limits:
           gpu: {{ .Values.serving.gpusPerWorker | quote }}
+      {{- with $volumeMounts }}
+      volumeMounts:
+        {{- . | nindent 8 }}
+      {{- end }}
       extraPodSpec:
         {{- with .Values.serving.imagePullSecrets }}
         imagePullSecrets:
           {{- toYaml . | nindent 10 }}
         {{- end }}
-        {{- with .Values.serving.gpuProduct }}
+        {{- with $nodeSelector }}
         nodeSelector:
-          nvidia.com/gpu.product: {{ . }}
+          {{- . | nindent 10 }}
         {{- end }}
         mainContainer:
           image: {{ $image | quote }}
@@ -138,8 +160,8 @@ spec:
             - prefill
             - --kv-transfer-config
             - '{"kv_connector":"NixlConnector","kv_role":"kv_both"}'
-            {{- range .Values.serving.extraArgs }}
-            - {{ . | quote }}
+            {{- with $argTail }}
+            {{- . | nindent 12 }}
             {{- end }}
     {{- else }}
     {{ $workerClass }}:
@@ -149,19 +171,22 @@ spec:
       envFromSecret: {{ . }}
       {{- end }}
       envs:
-        - name: NATS_SERVER
-          value: {{ $natsServer | quote }}
+        {{- $envs | nindent 8 }}
       resources:
         limits:
           gpu: {{ .Values.serving.gpusPerWorker | quote }}
+      {{- with $volumeMounts }}
+      volumeMounts:
+        {{- . | nindent 8 }}
+      {{- end }}
       extraPodSpec:
         {{- with .Values.serving.imagePullSecrets }}
         imagePullSecrets:
           {{- toYaml . | nindent 10 }}
         {{- end }}
-        {{- with .Values.serving.gpuProduct }}
+        {{- with $nodeSelector }}
         nodeSelector:
-          nvidia.com/gpu.product: {{ . }}
+          {{- . | nindent 10 }}
         {{- end }}
         mainContainer:
           image: {{ $image | quote }}
@@ -169,8 +194,8 @@ spec:
           args:
             - --model
             - {{ .Values.serving.modelName | quote }}
-            {{- range .Values.serving.extraArgs }}
-            - {{ . | quote }}
+            {{- with $argTail }}
+            {{- . | nindent 12 }}
             {{- end }}
     {{- end }}
 {{- end }}

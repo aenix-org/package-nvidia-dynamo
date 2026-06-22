@@ -26,11 +26,21 @@ host: ""
 ## @field {int} prefillReplicas - Worker replicas in aggregated mode, or Prefill worker replicas in disaggregated mode.
 ## @field {int} decodeReplicas - Decode worker replicas. 0 disables disaggregation (single aggregated worker).
 ## @field {int} gpusPerWorker - GPUs per worker pod. Maps to resources.limits.gpu on the worker container.
-## @field {string} [gpuProduct] - Optional nodeSelector value for `nvidia.com/gpu.product` (e.g. NVIDIA-RTX-A6000) to pin workers to a specific GPU class.
-## @field {[]string} extraArgs - Extra CLI args appended to the worker command. Backend-specific; for vllm common ones are `--gpu-memory-utilization=0.45` (cap VRAM share when sharing the GPU via time-slicing), `--max-model-len=8192`, `--tensor-parallel-size=2`. Items are passed verbatim, no quoting needed.
+## @field {string} [gpuProduct] - Shortcut: nodeSelector value for `nvidia.com/gpu.product` (e.g. NVIDIA-RTX-A6000). Merged into nodeSelector below; nodeSelector wins on conflict.
+## @field {map[string]string} nodeSelector - Free-form nodeSelector applied to every worker pod (and any other GPU component). Use this to pin to a specific node (`kubernetes.io/hostname: gpu3`), GPU machine (`nvidia.com/gpu.machine: ...`), zone, or any label combination. Empty by default — the operator schedules anywhere a free `nvidia.com/gpu` slot is available.
+## @field {float} [gpuMemoryUtilization] - vLLM convenience: cap the share of GPU VRAM a worker may take (0.0..1.0). Translates to `--gpu-memory-utilization=<v>` on the worker command line when the backend is vllm. Useful when several workers share the same physical GPU through device-plugin time-slicing. Empty = vLLM default (0.92). Ignored for sglang/trtllm — use extraArgs instead.
+## @field {string} [huggingfaceEndpoint] - Override HuggingFace hub endpoint via `HF_ENDPOINT` env. Use a mirror (e.g. `https://hf-mirror.com`) for on-prem mirrors / locked-down networks where the public hub is unreachable.
+## @field {ModelCache} modelCache - Persistent cache PVC mounted at /home/dynamo/.cache on every worker. Avoids re-downloading the model (HuggingFace `hub/`) and re-compiling CUDA graphs (vLLM `vllm/torch_compile_cache/`) on every pod restart.
+## @field {[]string} extraArgs - Extra CLI args appended to the worker command. Backend-specific; for vllm common ones are `--gpu-memory-utilization=0.45` (cap VRAM share when sharing the GPU via time-slicing — prefer the dedicated `gpuMemoryUtilization` field above), `--max-model-len=8192`, `--tensor-parallel-size=2`. Items are passed verbatim, no quoting needed.
 
 ## @typedef {struct} ImagePullSecret
 ## @field {string} name - Name of an existing Secret of type kubernetes.io/dockerconfigjson in the same namespace as the NvidiaDynamo CR.
+
+## @typedef {struct} ModelCache
+## @field {bool} enabled - Mount the PVC on workers. When false, every pod restart redownloads the model (full HuggingFace pull) and re-runs torch.compile on the model weights (~10 s for 7B). Default off for backward compatibility.
+## @field {string} size - PVC size. Should fit weights + torch_compile artifacts + safetensor scratch. Rough numbers for FP16: 0.5B ≈ 2 GiB, 7B ≈ 16 GiB, 13B ≈ 28 GiB, 70B ≈ 145 GiB. Default 50Gi covers everything up to a single 13B model with cache margin.
+## @field {string} storageClass - StorageClass for the PVC. cozystack ships `local` (RWO, zfs-thin, single-replica — fastest, lost on node loss) and `replicated` (RWO/RWX-capable, DRBD-replicated — survives node loss, ~2x slower writes). `replicated` is the safe default for a cache the user does not want to rebuild after a worker reschedule.
+## @field {enum:ReadWriteOnce,ReadWriteMany} accessMode - PVC access mode. RWO when only one worker pod per CR (prefillReplicas=1, decodeReplicas=0 — the common case). RWX when several workers (prefill + decode) want to share a single cache PVC; on cozystack `replicated` SC the LINSTOR CSI exposes RWX via the DRBD shared filesystem path (the same trick CDI uses for its `prime-*` scratch volumes).
 
 ## @param {Serving} serving - DynamoGraphDeployment configuration.
 serving:
@@ -46,4 +56,12 @@ serving:
   decodeReplicas: 0
   gpusPerWorker: 1
   gpuProduct: ""
+  nodeSelector: {}
+  gpuMemoryUtilization: null
+  huggingfaceEndpoint: ""
+  modelCache:
+    enabled: false
+    size: 50Gi
+    storageClass: replicated
+    accessMode: ReadWriteOnce
   extraArgs: []
