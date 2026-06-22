@@ -54,15 +54,26 @@ metadata:
   name: {{ .Release.Name }}
 spec:
   {{- if .Values.serving.modelCache.enabled }}
-  # Persistent HuggingFace + torch.compile cache. Created by the
-  # operator (create: true) and mounted into every worker that
-  # references it via spec.services.<svc>.volumeMounts[].name=model-cache.
+  # Persistent HuggingFace + torch.compile cache, mounted at
+  # /home/dynamo/.cache on every worker (see services[].volumeMounts).
+  #
+  # `create: true` (default) — DGD operator creates a fresh PVC named
+  # `<release>-model-cache`; lifecycle bound to this CR.
+  #
+  # `create: false` — DGD operator looks up an existing PVC by
+  # `modelCache.name`. Set both to share a single cache across
+  # multiple NvidiaDynamo CRs in the same tenant namespace; the
+  # tenant admin pre-creates the PVC once (kubectl / kustomize /
+  # standalone Application). Use RWX-capable storage when more than
+  # one CR is going to mount it concurrently.
   pvcs:
-    - name: model-cache
-      create: true
+    - name: {{ include "cozy-nvidia-dynamo.modelCachePvcName" . | quote }}
+      create: {{ .Values.serving.modelCache.create }}
+      {{- if .Values.serving.modelCache.create }}
       size: {{ .Values.serving.modelCache.size | quote }}
       storageClass: {{ .Values.serving.modelCache.storageClass | quote }}
       volumeAccessMode: {{ .Values.serving.modelCache.accessMode | quote }}
+      {{- end }}
   {{- end }}
   services:
     Frontend:

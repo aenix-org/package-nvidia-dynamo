@@ -58,6 +58,20 @@
 {{- end -}}
 
 {{- /*
+  cozy-nvidia-dynamo.modelCachePvcName — name DGD uses for the cache
+  PVC. Defaults to `<release>-model-cache` (matches per-CR create
+  mode); falls back to user-supplied `modelCache.name` when sharing
+  an existing PVC across CRs (create=false).
+*/}}
+{{- define "cozy-nvidia-dynamo.modelCachePvcName" -}}
+{{- if and (not .Values.serving.modelCache.create) .Values.serving.modelCache.name -}}
+{{ .Values.serving.modelCache.name }}
+{{- else -}}
+{{ .Release.Name }}-model-cache
+{{- end -}}
+{{- end -}}
+
+{{- /*
   cozy-nvidia-dynamo.workerVolumeMounts — DGD `volumeMounts:` ref into
   the top-level `pvcs:` entry when modelCache is enabled. mountPoint
   covers both HuggingFace hub (`hub/`) and vLLM compile cache
@@ -67,7 +81,7 @@
 */}}
 {{- define "cozy-nvidia-dynamo.workerVolumeMounts" -}}
 {{- if .Values.serving.modelCache.enabled }}
-- name: model-cache
+- name: {{ include "cozy-nvidia-dynamo.modelCachePvcName" . }}
   mountPoint: /home/dynamo/.cache
 {{- end }}
 {{- end -}}

@@ -38,9 +38,11 @@ host: ""
 
 ## @typedef {struct} ModelCache
 ## @field {bool} enabled - Mount the PVC on workers. When false, every pod restart redownloads the model (full HuggingFace pull) and re-runs torch.compile on the model weights (~10 s for 7B). Default off for backward compatibility.
-## @field {string} size - PVC size. Should fit weights + torch_compile artifacts + safetensor scratch. Rough numbers for FP16: 0.5B ≈ 2 GiB, 7B ≈ 16 GiB, 13B ≈ 28 GiB, 70B ≈ 145 GiB. Default 50Gi covers everything up to a single 13B model with cache margin.
-## @field {string} storageClass - StorageClass for the PVC. cozystack ships `local` (RWO, zfs-thin, single-replica — fastest, lost on node loss) and `replicated` (RWO/RWX-capable, DRBD-replicated — survives node loss, ~2x slower writes). `replicated` is the safe default for a cache the user does not want to rebuild after a worker reschedule.
-## @field {enum:ReadWriteOnce,ReadWriteMany} accessMode - PVC access mode. RWO when only one worker pod per CR (prefillReplicas=1, decodeReplicas=0 — the common case). RWX when several workers (prefill + decode) want to share a single cache PVC; on cozystack `replicated` SC the LINSTOR CSI exposes RWX via the DRBD shared filesystem path (the same trick CDI uses for its `prime-*` scratch volumes).
+## @field {bool} create - True (default) creates a fresh per-CR PVC named `<release>-model-cache`. False reuses an externally-managed PVC named `name` below — set this for a tenant-wide cache shared by every NvidiaDynamo CR in the namespace. In that case the tenant admin creates the PVC once (kubectl, kustomize, or its own Application), and every CR just mounts it.
+## @field {string} [name] - When create=false, the existing PVC name to mount. Required when create=false. Ignored when create=true.
+## @field {string} size - PVC size (only used when create=true). Should fit weights + torch_compile artifacts + safetensor scratch. Rough numbers for FP16: 0.5B ≈ 2 GiB, 7B ≈ 16 GiB, 13B ≈ 28 GiB, 70B ≈ 145 GiB. Default 50Gi covers everything up to a single 13B model with cache margin.
+## @field {string} storageClass - StorageClass for the PVC (only used when create=true). cozystack ships `local` (RWO, zfs-thin, single-replica — fastest, lost on node loss) and `replicated` (RWO/RWX-capable, DRBD-replicated — survives node loss, ~2x slower writes). `replicated` is the safe default for a cache the user does not want to rebuild after a worker reschedule.
+## @field {enum:ReadWriteOnce,ReadWriteMany} accessMode - PVC access mode (only used when create=true). RWO when only one worker pod per CR (prefillReplicas=1, decodeReplicas=0 — the common case). RWX when several workers (prefill + decode) want to share a single cache PVC, OR when the cache itself is shared across NvidiaDynamo CRs (create=false path); on cozystack `replicated` SC the LINSTOR CSI exposes RWX via the DRBD shared filesystem path (the same trick CDI uses for its `prime-*` scratch volumes).
 
 ## @param {Serving} serving - DynamoGraphDeployment configuration.
 serving:
@@ -61,6 +63,8 @@ serving:
   huggingfaceEndpoint: ""
   modelCache:
     enabled: false
+    create: true
+    name: ""
     size: 50Gi
     storageClass: replicated
     accessMode: ReadWriteOnce
