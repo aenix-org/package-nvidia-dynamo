@@ -67,5 +67,5 @@ serving:
     name: ""
     size: 50Gi
     storageClass: replicated
-    accessMode: ReadWriteOnce
+    accessMode: ReadWriteMany
   extraArgs: []
