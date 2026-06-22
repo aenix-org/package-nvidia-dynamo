@@ -27,6 +27,7 @@ host: ""
 ## @field {int} decodeReplicas - Decode worker replicas. 0 disables disaggregation (single aggregated worker).
 ## @field {int} gpusPerWorker - GPUs per worker pod. Maps to resources.limits.gpu on the worker container.
 ## @field {string} [gpuProduct] - Optional nodeSelector value for `nvidia.com/gpu.product` (e.g. NVIDIA-RTX-A6000) to pin workers to a specific GPU class.
+## @field {[]string} extraArgs - Extra CLI args appended to the worker command. Backend-specific; for vllm common ones are `--gpu-memory-utilization=0.45` (cap VRAM share when sharing the GPU via time-slicing), `--max-model-len=8192`, `--tensor-parallel-size=2`. Items are passed verbatim, no quoting needed.
 
 ## @typedef {struct} ImagePullSecret
 ## @field {string} name - Name of an existing Secret of type kubernetes.io/dockerconfigjson in the same namespace as the NvidiaDynamo CR.
@@ -45,3 +46,4 @@ serving:
   decodeReplicas: 0
   gpusPerWorker: 1
   gpuProduct: ""
+  extraArgs: []

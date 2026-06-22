@@ -103,6 +103,9 @@ spec:
             - {{ .Values.serving.modelName | quote }}
             - --disaggregation-mode
             - decode
+            {{- range .Values.serving.extraArgs }}
+            - {{ . | quote }}
+            {{- end }}
     {{ $backend | title }}PrefillWorker:
       componentType: worker
       subComponentType: prefill
@@ -135,6 +138,9 @@ spec:
             - prefill
             - --kv-transfer-config
             - '{"kv_connector":"NixlConnector","kv_role":"kv_both"}'
+            {{- range .Values.serving.extraArgs }}
+            - {{ . | quote }}
+            {{- end }}
     {{- else }}
     {{ $workerClass }}:
       componentType: worker
@@ -163,5 +169,8 @@ spec:
           args:
             - --model
             - {{ .Values.serving.modelName | quote }}
+            {{- range .Values.serving.extraArgs }}
+            - {{ . | quote }}
+            {{- end }}
     {{- end }}
 {{- end }}
