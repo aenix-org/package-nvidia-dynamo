@@ -1,0 +1,65 @@
+{{- /*
+  Standalone HTTP Ingress for the Dynamo Frontend Service.
+
+  DGD-native ingress (services.Frontend.ingress) is disabled in
+  graph-deployment.yaml because dynamo-operator hardcodes the
+  KUBERNETES_CLUSTER_DOMAIN last-segment as a host suffix and
+  ignores every override path we tried (hostSuffix="" → trailing
+  dot rejected by RFC 1123, empty env → still emits `.local`).
+  So we ship the Ingress ourselves; the operator will not delete it
+  because `services.Frontend.ingress.enabled=false`.
+
+  Matches the canonical cozystack tenant pattern: ingressClassName,
+  host suffix, and cert-manager ClusterIssuer come from the
+  per-namespace cozystack-values Secret that the cozystack-engine
+  injects into every tenant HelmRelease through valuesFrom. No
+  tenant-facing knobs for these — the platform decides them once
+  per namespace.
+
+  Skipped when `ingress: false` (the default). When enabled, host
+  defaults to `dynamo-<release>.<namespace-host>`, mirroring the
+  bootbox / grafana / kubernetes app conventions.
+*/}}
+{{- if .Values.ingress }}
+{{- $namespace := .Values._namespace | default dict -}}
+{{- $cluster := .Values._cluster | default dict -}}
+{{- $ingressClass := default "" (index $namespace "ingress") -}}
+{{- $clusterIssuer := default "letsencrypt-prod" (index $cluster "issuer-name") -}}
+{{- $solver := default "http01" (index $cluster "solver") -}}
+{{- $namespaceHost := default "" (index $namespace "host") -}}
+{{- $host := default (printf "dynamo-%s.%s" .Release.Name $namespaceHost) .Values.host -}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-frontend
+  annotations:
+    cert-manager.io/cluster-issuer: {{ $clusterIssuer | quote }}
+    {{- if eq $solver "http01" }}
+    acme.cert-manager.io/http01-ingress-ingressclassname: {{ $ingressClass | quote }}
+    {{- end }}
+  labels:
+    # Cozystack dashboard discovers tenant ingresses by these labels;
+    # without them the Ingress is invisible in the UI Resources view.
+    apps.cozystack.io/application.group: apps.cozystack.io
+    apps.cozystack.io/application.kind: NvidiaDynamo
+    apps.cozystack.io/application.name: {{ .Release.Name | trimPrefix "nvidia-dynamo-" }}
+    internal.cozystack.io/tenantresource: "true"
+spec:
+  ingressClassName: {{ $ingressClass | quote }}
+  tls:
+    - hosts:
+        - {{ $host | quote }}
+      secretName: {{ printf "%s-tls" .Release.Name | quote }}
+  rules:
+    - host: {{ $host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-frontend
+                port:
+                  name: http
+{{- end }}

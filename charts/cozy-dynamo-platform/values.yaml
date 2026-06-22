@@ -41,14 +41,6 @@ dynamo-platform:
     # DGD pods, otherwise it overrides the tenant-local value set in
     # graph-deployment.yaml services.<svc>.envs.
     natsAddr: ""
-    # The operator concatenates `<host>.<last-segment-of-KUBERNETES_CLUSTER_DOMAIN>`
-    # for every DGD ingress.host, which on cozystack (cluster.local /
-    # cozy.local) produces `…aspan.pro.local` and breaks TLS routing.
-    # Setting the env to empty makes the operator skip the suffix and
-    # use `host` verbatim. Webhook cert SAN includes the short
-    # `...svc.<ns>.svc` form, so apiserver still matches without the
-    # `.cluster.local` tail.
-    kubernetesClusterDomain: ""
     imagePullSecrets:
       - name: ngc-creds
     # Operator image must match the chart's argv contract. Chart 1.2.1

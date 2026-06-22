@@ -41,21 +41,6 @@
 */}}
 {{- $clusterDomain := default "cluster.local" (index (.Values._cluster | default dict) "cluster-domain") -}}
 {{- $natsServer := printf "nats://%s-nats.%s.svc.%s:4222" .Release.Name .Release.Namespace $clusterDomain -}}
-{{- /*
-  Ingress wiring. The dynamo-operator manages the Ingress object
-  itself through DGD `services.<svc>.ingress` — shipping a standalone
-  Ingress in this chart resulted in the operator deleting it on every
-  reconcile (DeleteIngress events with source=dynamographdeployment).
-  Compute host + ingressClass + ClusterIssuer the same way we did for
-  the standalone template and feed them through the DGD spec.
-*/}}
-{{- $ingressEnabled := .Values.ingress -}}
-{{- $namespace := .Values._namespace | default dict -}}
-{{- $ingressClass := default "" (index $namespace "ingress") -}}
-{{- $clusterIssuer := default "letsencrypt-prod" (index (.Values._cluster | default dict) "issuer-name") -}}
-{{- $solver := default "http01" (index (.Values._cluster | default dict) "solver") -}}
-{{- $namespaceHost := default "" (index $namespace "host") -}}
-{{- $ingressHost := default (printf "dynamo-%s.%s" .Release.Name $namespaceHost) .Values.host -}}
 ---
 apiVersion: nvidia.com/v1alpha1
 kind: DynamoGraphDeployment
@@ -66,27 +51,14 @@ spec:
     Frontend:
       componentType: frontend
       replicas: 1
-      {{- if $ingressEnabled }}
+      # DGD-native ingress disabled — dynamo-operator hardcodes
+      # `<host>.<last-segment-of-KUBERNETES_CLUSTER_DOMAIN>` and
+      # ignores both `hostSuffix=""` and an empty KUBERNETES_CLUSTER_DOMAIN
+      # env, so every host ends up as `...aspan.pro.local`. We ship
+      # a standalone Ingress in templates/ingress.yaml instead; the
+      # operator leaves it alone because enabled is false.
       ingress:
-        enabled: true
-        host: {{ $ingressHost | quote }}
-        ingressControllerClassName: {{ $ingressClass | quote }}
-        tls:
-          secretName: {{ printf "%s-tls" .Release.Name | quote }}
-        annotations:
-          cert-manager.io/cluster-issuer: {{ $clusterIssuer | quote }}
-          {{- if eq $solver "http01" }}
-          acme.cert-manager.io/http01-ingress-ingressclassname: {{ $ingressClass | quote }}
-          {{- end }}
-        # Cozystack dashboard discovers tenant ingresses by these
-        # labels — without them the Ingress is invisible in the UI
-        # Resource view (see apps/kubernetes for the canonical pattern).
-        labels:
-          apps.cozystack.io/application.group: apps.cozystack.io
-          apps.cozystack.io/application.kind: NvidiaDynamo
-          apps.cozystack.io/application.name: {{ .Release.Name | trimPrefix "nvidia-dynamo-" }}
-          internal.cozystack.io/tenantresource: "true"
-      {{- end }}
+        enabled: false
       {{- with .Values.serving.modelDownloadSecret }}
       envFromSecret: {{ . }}
       {{- end }}
