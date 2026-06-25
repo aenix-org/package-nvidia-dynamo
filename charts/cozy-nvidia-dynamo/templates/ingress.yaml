@@ -1,13 +1,18 @@
 {{- /*
   Standalone HTTP Ingress for the Dynamo Frontend Service.
 
-  DGD-native ingress (services.Frontend.ingress) is disabled in
-  graph-deployment.yaml because dynamo-operator hardcodes the
-  KUBERNETES_CLUSTER_DOMAIN last-segment as a host suffix and
-  ignores every override path we tried (hostSuffix="" → trailing
-  dot rejected by RFC 1123, empty env → still emits `.local`).
-  So we ship the Ingress ourselves; the operator will not delete it
-  because `services.Frontend.ingress.enabled=false`.
+  Named `<release>-public` (NOT `<release>-frontend`) deliberately:
+  dynamo-operator deletes any Ingress matching `<dgd-name>-frontend`
+  as an "orphan" on every reconcile, regardless of whether the DGD
+  spec actually asks for an ingress. Using a different name takes
+  our Ingress out of the operator's namespace.
+
+  We don't use DGD-native ingress at all (the operator hardcodes
+  the KUBERNETES_CLUSTER_DOMAIN last segment as a host suffix and
+  ignores every override path we tried — hostSuffix="" yields a
+  trailing dot rejected by RFC 1123, empty env still emits
+  `.local`). The Frontend block in graph-deployment.yaml therefore
+  omits the `ingress` field entirely.
 
   Matches the canonical cozystack tenant pattern: ingressClassName,
   host suffix, and cert-manager ClusterIssuer come from the
@@ -32,7 +37,7 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ .Release.Name }}-frontend
+  name: {{ .Release.Name }}-public
   annotations:
     cert-manager.io/cluster-issuer: {{ $clusterIssuer | quote }}
     {{- if eq $solver "http01" }}
@@ -50,7 +55,7 @@ spec:
   tls:
     - hosts:
         - {{ $host | quote }}
-      secretName: {{ printf "%s-tls" .Release.Name | quote }}
+      secretName: {{ printf "%s-public-tls" .Release.Name | quote }}
   rules:
     - host: {{ $host | quote }}
       http:
