@@ -79,14 +79,16 @@ spec:
     Frontend:
       componentType: frontend
       replicas: 1
-      # DGD-native ingress disabled — dynamo-operator hardcodes
-      # `<host>.<last-segment-of-KUBERNETES_CLUSTER_DOMAIN>` and
-      # ignores both `hostSuffix=""` and an empty KUBERNETES_CLUSTER_DOMAIN
-      # env, so every host ends up as `...aspan.pro.local`. We ship
-      # a standalone Ingress in templates/ingress.yaml instead; the
-      # operator leaves it alone because enabled is false.
-      ingress:
-        enabled: false
+      # NB: do NOT include `ingress: {enabled: false}` here.
+      # dynamo-operator serialises the Frontend block into the
+      # `nvidia.com/dgd-spec` annotation with `omitempty`, so
+      # `enabled: false` is stripped and `ingress: {}` reaches the
+      # reconciler — which then treats the empty object as
+      # "ingress requested" and creates / deletes an Ingress named
+      # `<release>-frontend` (overwriting the standalone Ingress we
+      # ship in templates/ingress.yaml). Omitting the field entirely
+      # leaves the operator no ingress hint at all, and our
+      # standalone Ingress survives.
       {{- with .Values.serving.modelDownloadSecret }}
       envFromSecret: {{ . }}
       {{- end }}
