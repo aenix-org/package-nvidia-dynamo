@@ -140,6 +140,23 @@ spec:
           args:
             - --model
             - {{ $m.modelName | quote }}
+            # Per-model Dynamo endpoint. Without an explicit override every
+            # worker registers on `<DYN_NAMESPACE>/backend/generate`, and the
+            # second worker fails with "a different model is already
+            # registered there" — Dynamo keys discovery on
+            # (namespace, component, endpoint), and the runtime defaults
+            # component to "backend" + endpoint to "generate".
+            #
+            # We keep the auto-injected Dynamo namespace (DGD operator sets
+            # DYN_NAMESPACE=<k8s-namespace>-<dgd-name> on every container) and
+            # give each model its own component name. Frontend discovers all
+            # registered models in the namespace via DYN_NAMESPACE_PREFIX, so
+            # routing by the OpenAI `model` field continues to work.
+            #
+            # Kubernetes substitutes $(DYN_NAMESPACE) at container start; the
+            # final Rust runtime sees `dyn://<ns>.<m.name>.generate`.
+            - --endpoint
+            - {{ printf "dyn://$(DYN_NAMESPACE).%s.generate" $m.name | quote }}
             {{- with $perModelArgTail }}
             {{- . | nindent 12 }}
             {{- end }}
