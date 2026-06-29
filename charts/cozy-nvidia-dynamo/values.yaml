@@ -15,10 +15,19 @@ host: ""
 ## operator / NATS / Grove itself — those are cluster singletons handled
 ## by `cozy-dynamo-platform`.
 
+## @typedef {struct} ModelSpec
+## @field {string} name - Worker component name (alphanumeric, used as DGD service name like `<Name>Worker`). Must be unique within the CR.
+## @field {string} modelName - HuggingFace model ID or local path passed to `--model`.
+## @field {int} [gpusPerWorker] - GPUs for THIS worker. Falls back to the top-level `serving.gpusPerWorker` when empty.
+## @field {float} [gpuMemoryUtilization] - vLLM `--gpu-memory-utilization` for THIS worker. Empty falls back to top-level. Use when several workers share one GPU through device-plugin time-slicing.
+## @field {[]string} [extraArgs] - Extra worker CLI args for THIS model. Appended after `--model`. Use here for model-specific flags (e.g. `--load-format=gguf` for a GGUF model).
+## @field {string} [modelDownloadSecret] - Per-model HF_TOKEN Secret. Empty falls back to the top-level secret.
+
 ## @typedef {struct} Serving
-## @field {bool} enabled - Emit a DynamoGraphDeployment CR for the model below.
-## @field {enum:vllm,sglang,trtllm} backend - Inference backend.
-## @field {string} modelName - Model identifier (HuggingFace ID or local path).
+## @field {bool} enabled - Emit a DynamoGraphDeployment CR for the model(s) below.
+## @field {enum:vllm,sglang,trtllm} backend - Inference backend (applies to every model in the CR).
+## @field {[]ModelSpec} models - Multi-model mode: when non-empty, one worker component is rendered per entry, all sharing the same Frontend. Frontend routes by the `model` field of the OpenAI-compat request to the worker that registered that model in NATS discovery. When empty, falls back to single-model mode using `modelName` below.
+## @field {string} modelName - Single-model mode: HuggingFace model ID. Ignored when `models[]` is non-empty.
 ## @field {string} [modelDownloadSecret] - Name of a Secret with HF_TOKEN for gated HuggingFace models. The whole Secret is sourced into the worker pod via envFromSecret, so each key becomes an env var.
 ## @field {string} [image] - Full Dynamo runtime image override. Leave empty to use nvcr.io/nvidia/ai-dynamo/<backend>-runtime:<imageTag>.
 ## @field {string} imageTag - Tag for the default nvcr.io runtime image (ignored when `image` is set explicitly).
@@ -48,6 +57,17 @@ host: ""
 serving:
   enabled: true
   backend: vllm
+  # Multi-model: when non-empty, single-model fields (modelName, extraArgs,
+  # gpuMemoryUtilization, prefillReplicas, decodeReplicas) are ignored.
+  # One worker per entry, all behind one Frontend. Example:
+  #   models:
+  #     - name: qwen-32b
+  #       modelName: Qwen/Qwen3-32B
+  #       gpusPerWorker: 1
+  #     - name: olmocr
+  #       modelName: allenai/olmOCR-2-7B-1025
+  #       gpusPerWorker: 1
+  models: []
   modelName: "Qwen/Qwen2.5-7B-Instruct"
   modelDownloadSecret: ""
   image: ""

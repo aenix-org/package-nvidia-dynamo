@@ -72,6 +72,26 @@
 {{- end -}}
 
 {{- /*
+  cozy-nvidia-dynamo.workerExtraArgsForModel — like .workerExtraArgs but
+  takes per-model extraArgs + gpuMemoryUtilization from the context
+  (._modelExtraArgs / ._modelGmu). Used in multi-model mode. Same
+  semantics: if the user passed --gpu-memory-utilization already, the
+  derived flag is skipped.
+*/}}
+{{- define "cozy-nvidia-dynamo.workerExtraArgsForModel" -}}
+{{- $userHasGpuMemUtil := false -}}
+{{- range ._modelExtraArgs -}}
+  {{- if hasPrefix "--gpu-memory-utilization" . }}{{- $userHasGpuMemUtil = true }}{{- end -}}
+{{- end -}}
+{{- if and (eq .Values.serving.backend "vllm") (not (empty ._modelGmu)) (not $userHasGpuMemUtil) }}
+- {{ printf "--gpu-memory-utilization=%v" ._modelGmu | quote }}
+{{- end }}
+{{- range ._modelExtraArgs }}
+- {{ . | quote }}
+{{- end }}
+{{- end -}}
+
+{{- /*
   cozy-nvidia-dynamo.workerVolumeMounts — DGD `volumeMounts:` ref into
   the top-level `pvcs:` entry when modelCache is enabled. mountPoint
   covers both HuggingFace hub (`hub/`) and vLLM compile cache

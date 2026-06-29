@@ -18,7 +18,8 @@
       <backend>-runtime images per backend.
 */}}
 {{- if .Values.serving.enabled }}
-{{- $disagg := gt (int .Values.serving.decodeReplicas) 0 -}}
+{{- $multi := gt (len .Values.serving.models) 0 -}}
+{{- $disagg := and (not $multi) (gt (int .Values.serving.decodeReplicas) 0) -}}
 {{- $backend := required "serving.backend is required (vllm|sglang|trtllm)" .Values.serving.backend -}}
 {{- $workerClass := "" -}}
 {{- if eq $backend "vllm"   }}{{- $workerClass = "VllmWorker"   -}}{{- end }}
@@ -101,7 +102,49 @@ spec:
         {{- end }}
         mainContainer:
           image: {{ $image | quote }}
-    {{- if $disagg }}
+    {{- if $multi }}
+    {{- range $i, $m := .Values.serving.models }}
+    {{- $gpus := default $.Values.serving.gpusPerWorker $m.gpusPerWorker }}
+    {{- $perModelArgs := default (list) $m.extraArgs }}
+    {{- $perModelGmu := $m.gpuMemoryUtilization }}
+    {{- $perModelSecret := default $.Values.serving.modelDownloadSecret $m.modelDownloadSecret }}
+    {{- $perModelCtx := merge (dict "natsServer" $natsServer "_modelExtraArgs" $perModelArgs "_modelGmu" $perModelGmu) $ }}
+    {{- $perModelArgTail := include "cozy-nvidia-dynamo.workerExtraArgsForModel" $perModelCtx }}
+    {{ $m.name | title }}Worker:
+      componentType: worker
+      replicas: 1
+      {{- with $perModelSecret }}
+      envFromSecret: {{ . }}
+      {{- end }}
+      envs:
+        {{- $envs | nindent 8 }}
+      resources:
+        limits:
+          gpu: {{ $gpus | quote }}
+      {{- with $volumeMounts }}
+      volumeMounts:
+        {{- . | nindent 8 }}
+      {{- end }}
+      extraPodSpec:
+        {{- with $.Values.serving.imagePullSecrets }}
+        imagePullSecrets:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with $nodeSelector }}
+        nodeSelector:
+          {{- . | nindent 10 }}
+        {{- end }}
+        mainContainer:
+          image: {{ $image | quote }}
+          command: ["python3", "-m", "dynamo.{{ $backend }}"]
+          args:
+            - --model
+            - {{ $m.modelName | quote }}
+            {{- with $perModelArgTail }}
+            {{- . | nindent 12 }}
+            {{- end }}
+    {{- end }}
+    {{- else if $disagg }}
     {{ $backend | title }}DecodeWorker:
       componentType: worker
       subComponentType: decode
