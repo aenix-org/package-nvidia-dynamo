@@ -7,6 +7,9 @@ ingress: false
 ## @param {string} [host] - Override the public hostname. Empty falls back to `dynamo-<release>.<namespace-host>` where the host suffix is the tenant's namespace.host from the cozystack platform values.
 host: ""
 
+## @param {string} [ingressClass] - Override the IngressClass. Empty falls back to the namespace IngressClass cozystack-engine injects (per-tenant nginx). Set to `tenant-root` to publish through the root tenant's controller when the per-tenant controller cannot acquire a LoadBalancer IP. The cert-manager http01 solver annotation tracks this value automatically.
+ingressClass: ""
+
 ## @section Model serving
 ##
 ## This chart emits a `DynamoGraphDeployment` CR which the cluster-wide
