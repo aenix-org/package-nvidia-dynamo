@@ -28,7 +28,18 @@
 {{- if .Values.ingress }}
 {{- $namespace := .Values._namespace | default dict -}}
 {{- $cluster := .Values._cluster | default dict -}}
-{{- $ingressClass := default "" (index $namespace "ingress") -}}
+{{- /*
+  IngressClass: tenant's namespace default unless the operator
+  overrides via `.Values.ingressClass`. Override exists for the
+  case where the per-tenant ingress-nginx HelmRelease cannot
+  acquire a LoadBalancer IP (MetalLB pool exhausted, the tenant
+  was provisioned without a publishable IP). Pointing at
+  `tenant-root` publishes through the cluster-wide root controller
+  — it is namespace-cluster-scoped on ingress watching and accepts
+  Ingresses from any namespace as long as they carry its class.
+*/}}
+{{- $namespaceIngressClass := default "" (index $namespace "ingress") -}}
+{{- $ingressClass := default $namespaceIngressClass .Values.ingressClass -}}
 {{- $clusterIssuer := default "letsencrypt-prod" (index $cluster "issuer-name") -}}
 {{- $solver := default "http01" (index $cluster "solver") -}}
 {{- $namespaceHost := default "" (index $namespace "host") -}}
